@@ -26,9 +26,14 @@ public class HashedIndex implements Index {
      *  Inserts this token in the hashtable.
      */
     public void insert( String token, int docID, int offset ) {
-        //
-        // YOUR CODE HERE
-        //
+        PostingsList postingsList = getPostings(token);
+        if (postingsList == null) {
+            postingsList = new PostingsList();
+            postingsList.addEntry(new PostingsEntry(docID));
+            index.put(token, postingsList);
+        } else {
+            postingsList.addEntry(new PostingsEntry(docID));
+        }
     }
 
 
@@ -37,10 +42,7 @@ public class HashedIndex implements Index {
      *  if the term is not in the index.
      */
     public PostingsList getPostings( String token ) {
-        //
-        // REPLACE THE STATEMENT BELOW WITH YOUR CODE
-        //
-        return null;
+        return index.get(token);
     }
 
 
