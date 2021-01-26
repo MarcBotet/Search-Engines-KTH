@@ -40,7 +40,7 @@ public class PostingsList implements Comparable<PostingsList> {
 
     @Override
     public int compareTo(PostingsList o) {
-        return Double.compare(o.size(), this.size());
+        return Integer.compare(o.size(), this.size());
     }
 }
 
