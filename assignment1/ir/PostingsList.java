@@ -31,11 +31,22 @@ public class PostingsList implements Comparable<PostingsList> {
         return list.get(i);
     }
 
-    public void addEntry(PostingsEntry postingsEntry) {
+    public void addEntry(int docID, int offset) {
         if (list.isEmpty()) {
-            list.add(postingsEntry);
-        } else if (postingsEntry.docID != list.get(list.size() - 1).docID)
-            list.add(postingsEntry);
+            list.add(new PostingsEntry(docID, offset));
+        } else if (docID != list.get(list.size() - 1).docID)
+            list.add(new PostingsEntry(docID, offset));
+        else { // is not a new document
+            list.get(list.size() - 1).addOffset(offset);
+        }
+    }
+
+    public void addEntry(PostingsEntry postingsEntry) {
+        list.add(postingsEntry);
+    }
+
+    public ArrayList<PostingsEntry> getList() {
+        return list;
     }
 
     @Override

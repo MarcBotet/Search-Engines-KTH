@@ -17,9 +17,20 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
 
     public int docID;
     public double score = 0;
+    public ArrayList<Integer> offsets = new ArrayList<>();
 
-    public PostingsEntry(int docID) {
+    public PostingsEntry(int docID, int offset) {
         this.docID = docID;
+        this.offsets.add(offset);
+    }
+
+    public PostingsEntry(int docID, ArrayList<Integer> offsets) {
+        this.docID = docID;
+        this.offsets = offsets;
+    }
+
+    public void addOffset(int offset) {
+        this.offsets.add(offset);
     }
 
     /**
@@ -33,9 +44,5 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
        return Double.compare( other.score, score );
     }
 
-
-    //
-    // YOUR CODE HERE
-    //
 }
 
