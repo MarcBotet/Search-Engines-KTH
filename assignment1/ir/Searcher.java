@@ -159,9 +159,9 @@ public class Searcher {
                     ++j;
                 }
 
-                if (i == offset1.size() && j < offset2.size() && diff > 0) {
+                if (i == offset1.size() && j < offset2.size() && offset1.get(i-1) > offset2.get(j)) {
                     i = offset1.size() - 1;
-                } else if (i < offset1.size() && j == offset2.size() && diff < 0) {
+                } else if (i < offset1.size() && j == offset2.size() && offset1.get(i) < offset2.get(j-1)) {
                     j = offset2.size() - 1;
                 }
             }

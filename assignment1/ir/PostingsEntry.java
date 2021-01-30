@@ -7,11 +7,9 @@
 
 package ir;
 
-import java.util.HashMap;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.io.Serializable;
+import java.util.stream.Collectors;
 
 public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
 
@@ -29,6 +27,14 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
         this.offsets = offsets;
     }
 
+    public PostingsEntry(String postingEntry) {
+        String[] array = postingEntry.split(":");
+        String docID = array[0];
+        ArrayList<String> myList = new ArrayList<>(Arrays.asList(array[1].split(",")));
+        myList.forEach((s) -> offsets.add(Integer.parseInt(s)));
+        this.docID = Integer.parseInt(docID);
+    }
+
     public void addOffset(int offset) {
         this.offsets.add(offset);
     }
@@ -42,6 +48,12 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
      */
     public int compareTo( PostingsEntry other ) {
        return Double.compare( other.score, score );
+    }
+
+    @Override
+    public String toString() {
+        String offsets_string = offsets.stream().map(Object::toString).collect(Collectors.joining(","));
+        return docID + ":" + offsets_string;
     }
 
 }
