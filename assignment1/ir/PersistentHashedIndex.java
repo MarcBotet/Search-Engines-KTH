@@ -267,10 +267,10 @@ public class PersistentHashedIndex implements Index {
      */
     public PostingsList getPostings( String token ) {
         long pointer = hashcode(token);
-        String data = "";
-        while (pointer < SIZE_DATAFILE) {
+        while (true) {
             Entry entry = readEntry(pointer);
-            data = readData(entry.ptr, entry.size);
+            if (entry.ptr == 0) break;
+            String data = readData(entry.ptr, entry.size);
             String[] info = data.split("\\*");
             String word = info[0];
             if (word.equals(token)) {
