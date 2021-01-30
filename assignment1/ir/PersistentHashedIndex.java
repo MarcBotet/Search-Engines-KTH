@@ -9,7 +9,6 @@ package ir;
 
 import java.io.*;
 import java.util.*;
-import java.nio.charset.*;
 
 
 /*
@@ -55,6 +54,11 @@ public class PersistentHashedIndex implements Index {
     /** The cache as a main-memory hash map. */
     HashMap<String,PostingsList> index = new HashMap<String,PostingsList>();
 
+    HashSet<Long> positionUsed = new HashSet<>();
+
+    long size_dict = 12;
+    long SIZE_DATAFILE;
+
 
     // ===================================================================
 
@@ -62,9 +66,20 @@ public class PersistentHashedIndex implements Index {
      *   A helper class representing one entry in the dictionary hashtable.
      */ 
     public class Entry {
-        //
-        //  YOUR CODE HERE
-        //
+        public long ptr;
+        public int size;
+        public int collisions = 0;
+
+        public Entry(long ptr) {
+            this.ptr = ptr;
+        }
+
+        public Entry(long ptr, int size) {
+            this.ptr = ptr;
+            this.size = size;
+        }
+
+        public Entry() {}
     }
 
 
@@ -79,6 +94,7 @@ public class PersistentHashedIndex implements Index {
         try {
             dictionaryFile = new RandomAccessFile( INDEXDIR + "/" + DICTIONARY_FNAME, "rw" );
             dataFile = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME, "rw" );
+            SIZE_DATAFILE = dictionaryFile.length();
         } catch ( IOException e ) {
             e.printStackTrace();
         }
@@ -117,6 +133,7 @@ public class PersistentHashedIndex implements Index {
             dataFile.seek( ptr );
             byte[] data = new byte[size];
             dataFile.readFully( data );
+            SIZE_DATAFILE = dataFile.length();
             return new String(data);
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -136,9 +153,17 @@ public class PersistentHashedIndex implements Index {
      *  @param ptr   The place in the dictionary file to store the entry
      */
     void writeEntry( Entry entry, long ptr ) {
-        //
-        //  YOUR CODE HERE
-        //
+        try {
+            dictionaryFile.seek(ptr);
+            dictionaryFile.writeLong(entry.ptr);
+            dictionaryFile.seek(ptr+8);
+            dictionaryFile.writeInt(entry.size);
+            positionUsed.add(ptr);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
     }
 
     /**
@@ -146,11 +171,17 @@ public class PersistentHashedIndex implements Index {
      *
      *  @param ptr The place in the dictionary file where to start reading.
      */
-    Entry readEntry( long ptr ) {   
-        //
-        //  REPLACE THE STATEMENT BELOW WITH YOUR CODE 
-        //
-        return null;
+    Entry readEntry( long ptr ) {
+        Entry entry = new Entry();
+        try {
+            dictionaryFile.seek(ptr);
+            entry.ptr = dictionaryFile.readLong();
+            dictionaryFile.seek(ptr+8);
+            entry.size = dictionaryFile.readInt();
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
+        return entry;
     }
 
 
@@ -203,10 +234,23 @@ public class PersistentHashedIndex implements Index {
             writeDocInfo();
 
             // Write the dictionary and the postings list
+            for (Map.Entry<String, PostingsList> pair : index.entrySet()) {
+                String key = pair.getKey();
+                PostingsList value = pair.getValue();
+                String data = key + "*" + value.toString();
+                int bytesRead = writeData(data, free);
+                if (bytesRead <= 0) continue;
+                Entry entry = new Entry(free, bytesRead);
+                free += bytesRead+1;
 
-            // 
-            //  YOUR CODE HERE
-            //
+                long hash = hashcode(key);
+                while (positionUsed.contains(hash)) {
+                    hash += size_dict;
+                    collisions += 1;
+                }
+                writeEntry(entry, hash);
+                //System.err.println(entry.collisions);
+            }
         } catch ( IOException e ) {
             e.printStackTrace();
         }
@@ -222,10 +266,23 @@ public class PersistentHashedIndex implements Index {
      *  if the term is not in the index.
      */
     public PostingsList getPostings( String token ) {
-        //
-        //  REPLACE THE STATEMENT BELOW WITH YOUR CODE
-        //
+        long pointer = hashcode(token);
+        String data = "";
+        while (pointer < SIZE_DATAFILE) {
+            Entry entry = readEntry(pointer);
+            data = readData(entry.ptr, entry.size);
+            String[] info = data.split("\\*");
+            String word = info[0];
+            if (word.equals(token)) {
+                return new PostingsList(info[1]);
+            }
+            pointer += size_dict;
+        }
         return null;
+    }
+
+    public PostingsList getPostingsMemory( String token ) {
+        return index.get(token);
     }
 
 
@@ -233,9 +290,19 @@ public class PersistentHashedIndex implements Index {
      *  Inserts this token in the main-memory hashtable.
      */
     public void insert( String token, int docID, int offset ) {
-        //
-        //  YOUR CODE HERE
-        //
+        PostingsList postingsList = getPostingsMemory(token);
+        if (postingsList == null) {
+            postingsList = new PostingsList();
+            postingsList.addEntry(docID, offset);
+            index.put(token, postingsList);
+        } else {
+            postingsList.addEntry(docID, offset);
+        }
+    }
+
+    public long hashcode(String code) {
+        long hash = (code.hashCode() & 0xfffffff ) % TABLESIZE;
+        return hash*size_dict;
     }
 
 

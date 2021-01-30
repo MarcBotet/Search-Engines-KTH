@@ -8,6 +8,7 @@
 package ir;
 
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 public class PostingsList implements Comparable<PostingsList> {
 
@@ -15,6 +16,15 @@ public class PostingsList implements Comparable<PostingsList> {
      * The postings list
      */
     private ArrayList<PostingsEntry> list = new ArrayList<PostingsEntry>();
+
+    public PostingsList() {}
+
+    public PostingsList(String posting) {
+        String[] postingEntries = posting.split("-");
+        for (String entry : postingEntries) {
+            list.add(new PostingsEntry(entry));
+        }
+    }
 
 
     /**
@@ -52,6 +62,12 @@ public class PostingsList implements Comparable<PostingsList> {
     @Override
     public int compareTo(PostingsList o) {
         return Integer.compare(o.size(), this.size());
+    }
+
+
+    @Override
+    public String toString() {
+        return list.stream().map(Object::toString).collect(Collectors.joining("-"));
     }
 }
 
