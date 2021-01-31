@@ -133,7 +133,6 @@ public class PersistentHashedIndex implements Index {
             dataFile.seek( ptr );
             byte[] data = new byte[size];
             dataFile.readFully( data );
-            SIZE_DATAFILE = dataFile.length();
             return new String(data);
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -176,7 +175,7 @@ public class PersistentHashedIndex implements Index {
         try {
             dictionaryFile.seek(ptr);
             entry.ptr = dictionaryFile.readLong();
-            dictionaryFile.seek(ptr+8);
+            //dictionaryFile.seek(ptr+8);
             entry.size = dictionaryFile.readInt();
         } catch ( IOException e ) {
             e.printStackTrace();
