@@ -7,12 +7,14 @@ import java.util.TreeMap;
 
 public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
-    public static final String INDEXDIR = "./index_merge";
+    public static final String INDEXDIR = "./index_guardian";
 
-    public static final int MAX_TOKENS= 50000;
+    public static final int MAX_TOKENS= 350000;
+    //public static final int MAX_TOKENS= 100000;
 
     /** The dictionary hash table on disk can fit this many entries. */
-    public static final long TABLESIZE = 611953L; // change at some point
+    //public static final long TABLESIZE = 611953L; // change at some point
+    public static final long TABLESIZE = 3559999L; // change at some point
 
     long size_dict = 8;
 
@@ -31,6 +33,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
     /** The cache as a main-memory hash map. */
     TreeMap<String,PostingsList> index = new TreeMap<>();
 
+    public Merge merge;
+
     public static class Pair {
         public String data;
         public int size;
@@ -42,6 +46,178 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
         public Pair() {}
     }
+
+
+    class Merge extends Thread {
+
+        int step;
+
+        public Merge (int mergeStep) {
+            this.step = mergeStep;
+        }
+
+        public void run() {
+            try {
+                mergeFiles();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private String mergePostingList(String p1, String p2) {
+            PostingsList answer = mergePostingList(new PostingsList(p1), new PostingsList(p2));
+            return answer.toString();
+        }
+
+        private PostingsList mergePostingList(PostingsList p1, PostingsList p2) {
+            PostingsList answer = new PostingsList();
+            int i = 0;
+            int j = 0;
+            while (i < p1.size() && j < p2.size()) {
+                PostingsEntry postingsEntry1 = p1.get(i);
+                PostingsEntry postingsEntry2 = p2.get(j);
+                if (postingsEntry1.docID == postingsEntry2.docID) {
+                    ArrayList<Integer> offsets = mergeOffsets(postingsEntry1.offsets, postingsEntry2.offsets);
+                    answer.addEntry(new PostingsEntry(postingsEntry1.docID, offsets));
+                    ++i;
+                    ++j;
+                } else if (postingsEntry1.docID < postingsEntry2.docID) {
+                    answer.addEntry(postingsEntry1);
+                    i++;
+                } else {
+                    answer.addEntry(postingsEntry2);
+                    ++j;
+                }
+            }
+            if (i < p1.size()) {
+                answer.addAll(p1, i);
+            } else if (j < p2.size()) {
+                answer.addAll(p2, j);
+            }
+            return answer;
+        }
+
+        private ArrayList<Integer> mergeOffsets (ArrayList<Integer> o1, ArrayList<Integer> o2) {
+            ArrayList<Integer> answer = new ArrayList<>();
+            int i = 0;
+            int j = 0;
+            while (i < o1.size() && j < o2.size()) {
+                if (o1.get(i).equals(o2.get(j))) {
+                    answer.add(o1.get(i));
+                    ++i;
+                    ++j;
+                } else if (o1.get(i) < o2.get(j)) {
+                    answer.add(o1.get(i));
+                    i++;
+                } else {
+                    answer.add(o2.get(j));
+                    ++j;
+                }
+            }
+            if (i < o1.size()) {
+                answer.addAll(o1.subList(i, o1.size()));
+            } else if (j < o2.size()) {
+                answer.addAll(o2.subList(j, o2.size()));
+            }
+            return answer;
+        }
+
+       private void mergeFiles() throws IOException {
+            int lastStep = step-1;
+            RandomAccessFile datafileM = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME + "M" + lastStep, "r" );
+            RandomAccessFile datafile = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME + lastStep, "r" );
+            RandomAccessFile destination = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME + "M" + step, "rw" );
+
+            // do the merge to destination
+            long pos1 = 0;
+            long posM = 0;
+            long pos1_old = -1;
+            long posM_old = -1;
+            long freeD = 0;
+            PersistentScalableHashedIndex.Pair data1 = new PersistentScalableHashedIndex.Pair();
+            PersistentScalableHashedIndex.Pair data2 = new PersistentScalableHashedIndex.Pair();
+            int deb = 0;
+            while (pos1 < datafile.length() && posM < datafileM.length()) {
+                if (pos1_old != pos1) data1 = readData(pos1, datafile);
+                if (posM_old != posM) data2 = readData(posM, datafileM);
+
+                pos1_old = pos1;
+                posM_old = posM;
+                //if (deb%50000 ==0) System.err.println("hdhdddhd " + deb + " merge "+ mergeStep);
+                String[] info = data1.data.split("\\*");
+                String token1 = info[0];
+                String posting1 = info[1];
+
+                info = data2.data.split("\\*");
+                String token2 = info[0];
+                String posting2 = info[1];
+
+                if (token1.equals(token2)) {
+                    String posting = mergePostingList(posting1, posting2);
+
+                    int bytesWritten = writeDataWithLength(token1+"*"+posting, freeD, destination);
+                    if (bytesWritten <= 0) continue;
+                    freeD += bytesWritten+1;
+
+                    pos1 += data1.size + 1;
+                    posM += data2.size + 1;
+                } else if (token1.compareTo(token2) < 0) {
+                    int bytesWritten = writeDataWithLength(data1.data, freeD, destination);
+                    if (bytesWritten <= 0) continue;
+                    freeD += bytesWritten+1;
+                    pos1 += data1.size + 1;
+
+                } else {
+                    int bytesWritten = writeDataWithLength(data2.data, freeD, destination);
+                    if (bytesWritten <= 0) continue;
+                    freeD += bytesWritten+1;
+                    posM += data2.size + 1;
+                }
+                ++deb;
+            }
+
+            if (pos1 < datafile.length()) {
+                appendDataFiles(datafile, destination, pos1, freeD);
+            } else if (posM < datafileM.length()) {
+                appendDataFiles(datafileM, destination, posM, freeD);
+            }
+
+            System.err.println( "Merge done!" );
+            datafile.close();
+            datafileM.close();
+            destination.close();
+            File file = new File(INDEXDIR + "/" + DATA_FNAME + "M" + lastStep);
+            if (file.delete()) System.err.println("file " + DATA_FNAME + "M" + lastStep + " deleted");
+            file = new File(INDEXDIR + "/" + DATA_FNAME + lastStep);
+            if (file.delete()) System.err.println("file " + DATA_FNAME + lastStep + " deleted");
+
+        }
+
+        private void appendDataFiles(RandomAccessFile datafile, RandomAccessFile destination, long pos, long freeD) {
+            try {
+                datafile.seek(pos);
+                int size = (int) (datafile.length() - pos);
+                byte[] data = new byte[size];
+                datafile.readFully( data );
+
+                destination.seek(freeD);
+                destination.write(data);
+            } catch ( IOException e ) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    public PersistentScalableHashedIndex() {
+        try {
+            readDocInfo();
+        } catch ( FileNotFoundException e ) {
+        } catch ( IOException e ) {
+            e.printStackTrace();
+        }
+    }
+
 
     private void writeDocInfo() throws IOException {
         FileOutputStream fout = new FileOutputStream( INDEXDIR + "/docInfo", true );
@@ -73,175 +249,10 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         freader.close();
     }
 
-    private String mergePostingList(String p1, String p2) {
-        PostingsList answer = mergePostingList(new PostingsList(p1), new PostingsList(p2));
-        return answer.toString();
-    }
-
-    private PostingsList mergePostingList(PostingsList p1, PostingsList p2) {
-        PostingsList answer = new PostingsList();
-        int i = 0;
-        int j = 0;
-        while (i < p1.size() && j < p2.size()) {
-            PostingsEntry postingsEntry1 = p1.get(i);
-            PostingsEntry postingsEntry2 = p2.get(j);
-            if (postingsEntry1.docID == postingsEntry2.docID) {
-                ArrayList<Integer> offsets = mergeOffsets(postingsEntry1.offsets, postingsEntry2.offsets);
-                answer.addEntry(new PostingsEntry(postingsEntry1.docID, offsets));
-                ++i;
-                ++j;
-            } else if (postingsEntry1.docID < postingsEntry2.docID) {
-                answer.addEntry(postingsEntry1);
-                i++;
-            } else {
-                answer.addEntry(postingsEntry2);
-                ++j;
-            }
-        }
-        if (i < p1.size()) {
-            answer.addAll(p1, i);
-        } else if (j < p2.size()) {
-            answer.addAll(p2, j);
-        }
-        return answer;
-    }
-
-    private ArrayList<Integer> mergeOffsets (ArrayList<Integer> o1, ArrayList<Integer> o2) {
-        ArrayList<Integer> answer = new ArrayList<>();
-        int i = 0;
-        int j = 0;
-        while (i < o1.size() && j < o2.size()) {
-            if (o1.get(i).equals(o2.get(j))) {
-                answer.add(o1.get(i));
-                ++i;
-                ++j;
-            } else if (o1.get(i) < o2.get(j)) {
-                answer.add(o1.get(i));
-                i++;
-            } else {
-                answer.add(o2.get(j));
-                ++j;
-            }
-        }
-        if (i < o1.size()) {
-            answer.addAll(o1.subList(i, o1.size()));
-        } else if (j < o2.size()) {
-            answer.addAll(o2.subList(j, o2.size()));
-        }
-        return answer;
-    }
-
-    public PersistentScalableHashedIndex() {
-        try {
-            readDocInfo();
-        } catch ( FileNotFoundException e ) {
-        } catch ( IOException e ) {
-            e.printStackTrace();
-        }
-    }
-
-    private void mergeFiles() throws IOException {
-        int lastStep = mergeStep-1;
-        RandomAccessFile datafileM = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME + "M" + lastStep, "r" );
-        RandomAccessFile datafile = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME + lastStep, "r" );
-        RandomAccessFile destination = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME + "M" + mergeStep, "rw" );
-
-        // do the merge to destination
-        long pos1 = 0;
-        long posM = 0;
-        long pos1_old = -1;
-        long posM_old = -1;
-        long freeD = 0;
-        Pair data1 = new Pair();
-        Pair data2 = new Pair();
-        int deb = 0;
-        while (pos1 < datafile.length() && posM < datafileM.length()) {
-            if (pos1_old != pos1) data1 = readData(pos1, datafile);
-            if (posM_old != posM) data2 = readData(posM, datafileM);
-
-            pos1_old = pos1;
-            posM_old = posM;
-            //System.err.println("hdhdddhd " + deb + " merge "+ mergeStep);
-            String[] info = data1.data.split("\\*");
-            String token1 = info[0];
-            String posting1 = info[1];
-
-            info = data2.data.split("\\*");
-            String token2 = info[0];
-            String posting2 = info[1];
-
-            if (token1.equals(token2)) {
-                String posting = mergePostingList(posting1, posting2);
-
-                int bytesWritten = writeDataWithLength(token1+"*"+posting, freeD, destination);
-                if (bytesWritten <= 0) continue;
-                freeD += bytesWritten+1;
-
-                pos1 += data1.size + 1;
-                posM += data2.size + 1;
-            } else if (token1.compareTo(token2) < 0) {
-                int bytesWritten = writeDataWithLength(data1.data, freeD, destination);
-                if (bytesWritten <= 0) continue;
-                freeD += bytesWritten+1;
-                pos1 += data1.size + 1;
-
-            } else {
-                int bytesWritten = writeDataWithLength(data2.data, freeD, destination);
-                if (bytesWritten <= 0) continue;
-                freeD += bytesWritten+1;
-                posM += data2.size + 1;
-            }
-            ++deb;
-        }
-
-        if (pos1 < datafile.length()) {
-            appendDataFiles(datafile, destination, pos1, freeD);
-        } else if (posM < datafileM.length()) {
-            appendDataFiles(datafileM, destination, posM, freeD);
-        }
-
-        System.err.println( "Merge done!" );
-        datafile.close();
-        datafileM.close();
-        destination.close();
-        File file = new File(INDEXDIR + "/" + DATA_FNAME + "M" + lastStep);
-        if (file.delete()) System.err.println("file " + DATA_FNAME + "M" + lastStep + " deleted");
-        file = new File(INDEXDIR + "/" + DATA_FNAME + lastStep);
-        if (file.delete()) System.err.println("file " + DATA_FNAME + lastStep + " deleted");
-
-
-
-
-    }
-
-    private void appendDataFiles2(RandomAccessFile datafile, RandomAccessFile destination, long pos, long freeD) throws IOException {
-        while (pos < datafile.length()) {
-           Pair data = readData(pos, datafile);
-            int bytesWritten = writeDataWithLength(data.data, freeD, destination);
-            if (bytesWritten <= 0) continue;
-            freeD += bytesWritten+1;
-            pos += data.size + 1;
-        }
-    }
-
-    private void appendDataFiles(RandomAccessFile datafile, RandomAccessFile destination, long pos, long freeD) {
-        try {
-            datafile.seek(pos);
-            int size = (int) (datafile.length() - pos);
-            byte[] data = new byte[size];
-            datafile.readFully( data );
-
-            destination.seek(freeD);
-            destination.write(data);
-        } catch ( IOException e ) {
-            e.printStackTrace();
-        }
-    }
-
     /**
      *  Reads data from the data file
      */
-    Pair readData(long ptr, RandomAccessFile datafile) {
+    static Pair readData(long ptr, RandomAccessFile datafile) {
         try {
             datafile.seek(ptr);
             int size = datafile.readInt();
@@ -259,7 +270,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
      *
      *  @return The number of bytes written.
      */
-    int writeDataWithLength(String dataString, long ptr, RandomAccessFile dataFile) {
+    static int writeDataWithLength(String dataString, long ptr, RandomAccessFile dataFile) {
         try {
             dataFile.seek( ptr+4 );
             byte[] data = dataString.getBytes();
@@ -314,13 +325,18 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         number_of_tokens_treated = 0;
         free = 0;
         if (filesWritten != 0) {
-            try {
-                ++mergeStep;
-                System.err.println( "lets merge!" );
-                mergeFiles();
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
+            ++mergeStep;
+            System.err.println( "lets merge!" );
+
+            if (mergeStep != 1) {
+                try {
+                    merge.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
+            merge = new Merge(mergeStep);
+            merge.start();
         }
         filesWritten++;
     }
@@ -354,30 +370,30 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         }
     }
 
-    void writeEntry( Entry entry, long ptr ) {
+    void writeEntry( Entry entry, long ptr, RandomAccessFile datafile ) {
         try {
-            dictionaryFile.seek(ptr);
-            dictionaryFile.writeLong(entry.ptr);
+            datafile.seek(ptr);
+            datafile.writeLong(entry.ptr);
             positionUsed.add(ptr);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    Entry readEntry( long ptr ) {
+    Entry readEntry( long ptr, RandomAccessFile datafile ) {
         Entry entry = new Entry();
         try {
-            dictionaryFileFinal.seek(ptr);
-            entry.ptr = dictionaryFileFinal.readLong();
+            datafile.seek(ptr);
+            entry.ptr = datafile.readLong();
         } catch ( IOException e ) {
             e.printStackTrace();
         }
         return entry;
     }
 
-    private void writeDictionariFile() throws IOException {
+    private void writeDictionaryFile() throws IOException {
         RandomAccessFile datafile = new RandomAccessFile( INDEXDIR + "/" + DATA_FNAME, "r" );
-        dictionaryFile = new RandomAccessFile( INDEXDIR + "/" + DICTIONARY_FNAME, "rw" );
+        RandomAccessFile dictionaryFileFinal = new RandomAccessFile( INDEXDIR + "/" + DICTIONARY_FNAME, "rw" );
 
         // do the merge to destination
         long pos = 0;
@@ -385,14 +401,19 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             Pair data = readData(pos, datafile);
             String token = data.data.split("\\*")[0];
 
+            if (token.equals("zombie") || token.equals("attack")) {
+                System.err.println("hhhhh");
+            }
+
             Entry entry = new Entry(pos);
             long hash = hashcode(token);
             while (positionUsed.contains(hash)) {
                 hash += size_dict;
             }
-            writeEntry(entry, hash);
+            writeEntry(entry, hash, dictionaryFileFinal);
             pos += data.size + 1;
         }
+        dictionaryFileFinal.close();
 
     }
 
@@ -408,7 +429,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         long pointer = hashcode(token);
         int coll = 0;
         while (true) {
-            Entry entry = readEntry(pointer);
+            Entry entry = readEntry(pointer, dictionaryFileFinal);
             if (entry.ptr == 0) break;
             Pair data = readData(entry.ptr, dataFileFinal);
             String[] info = data.data.split("\\*");
@@ -427,17 +448,24 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         System.err.println( "clean up... ");
         try {
             handle();
+            merge.join();
             new File(INDEXDIR + "/" + DATA_FNAME + "M" + mergeStep).renameTo(new File(INDEXDIR + "/" + DATA_FNAME));
+            System.err.println("Creating dictionary file");
             long startTime = System.currentTimeMillis();
-            writeDictionariFile();
+            writeDictionaryFile();
             readDocInfo();
             long elapsedTime = System.currentTimeMillis() - startTime;
             System.err.println("time to write dictionari " + elapsedTime/1000.0);
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
 
         System.err.println( "done!" );
+    }
+
+    public long hashcode(String code) {
+        long hash = (code.hashCode() & 0xfffffff ) % TABLESIZE;
+        return hash*size_dict;
     }
 
 }
