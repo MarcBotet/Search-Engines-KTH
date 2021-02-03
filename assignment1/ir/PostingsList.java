@@ -55,6 +55,11 @@ public class PostingsList implements Comparable<PostingsList> {
         list.add(postingsEntry);
     }
 
+    public void addAll(PostingsList postingsList, int index) {
+        int end = postingsList.size();
+        list.addAll(postingsList.list.subList(index, end));
+    }
+
     public ArrayList<PostingsEntry> getList() {
         return list;
     }

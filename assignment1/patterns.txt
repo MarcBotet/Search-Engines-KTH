@@ -20,6 +20,7 @@ https?://(www.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()
 
 // p.m. b.c.
 [a-zA-Z]\.[a-zA-Z]\.
+\d+([\.]\d+)+
 
 // contractions
 [a-zA-Z]+'[a-zA-Z]{1,2}$
@@ -32,10 +33,8 @@ https?://(www.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()
 [\+$]\d+
 
 // words and numbers seperated with -,._
-\w+([-,\._]\w+)*
+[\w,-,]+\.(xlsx|ppt|doc|png|jpg|jpeg|pdf|html|py|java|class|txt)
+\w+([-,]\w+)*
 
 // ip direction
 \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}
-
-// number seperated by ,
-//(,?\d+)+
