@@ -54,8 +54,6 @@ public class PersistentHashedIndex implements Index {
     /** The cache as a main-memory hash map. */
     HashMap<String,PostingsList> index = new HashMap<String,PostingsList>();
 
-    HashSet<Long> positionUsed = new HashSet<>();
-
     long size_dict = 12;
     long SIZE_DATAFILE;
 
@@ -157,7 +155,6 @@ public class PersistentHashedIndex implements Index {
             dictionaryFile.writeLong(entry.ptr);
             dictionaryFile.seek(ptr+8);
             dictionaryFile.writeInt(entry.size);
-            positionUsed.add(ptr);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -178,7 +175,7 @@ public class PersistentHashedIndex implements Index {
             //dictionaryFile.seek(ptr+8);
             entry.size = dictionaryFile.readInt();
         } catch ( IOException e ) {
-            e.printStackTrace();
+            return null;
         }
         return entry;
     }
@@ -243,9 +240,12 @@ public class PersistentHashedIndex implements Index {
                 free += bytesRead+1;
 
                 long hash = hashcode(key);
-                while (positionUsed.contains(hash)) {
+
+                Entry position = readEntry(hash);
+                while (position != null && position.ptr != 0) {
                     hash += size_dict;
                     collisions += 1;
+                    position = readEntry(hash);
                 }
                 writeEntry(entry, hash);
                 //System.err.println(entry.collisions);
@@ -266,6 +266,7 @@ public class PersistentHashedIndex implements Index {
      */
     public PostingsList getPostings( String token ) {
         long pointer = hashcode(token);
+        int coll = 0;
         while (true) {
             Entry entry = readEntry(pointer);
             if (entry.ptr == 0) break;
@@ -275,8 +276,10 @@ public class PersistentHashedIndex implements Index {
             if (word.equals(token)) {
                 return new PostingsList(info[1]);
             }
+            ++coll;
             pointer += size_dict;
         }
+        System.out.println(coll);
         return null;
     }
 
@@ -288,7 +291,7 @@ public class PersistentHashedIndex implements Index {
     /**
      *  Inserts this token in the main-memory hashtable.
      */
-    public void insert( String token, int docID, int offset ) {
+    public void insert( String token, int docID, int offset ){
         PostingsList postingsList = getPostingsMemory(token);
         if (postingsList == null) {
             postingsList = new PostingsList();

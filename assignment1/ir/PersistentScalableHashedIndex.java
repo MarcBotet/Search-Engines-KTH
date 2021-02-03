@@ -24,6 +24,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
 
     public static int mergeStep = 0;
 
+    public static int totalTokensProcessed = 0;
+
     /** The dictionary hash table is stored in this file. */
     RandomAccessFile dictionaryFileFinal;
 
@@ -319,6 +321,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             new File( INDEXDIR + "/docInfo").delete();
         }
         writeIndexToDatafile();
+        totalTokensProcessed += index.size();
+        System.err.println("Total number of tokens " + totalTokensProcessed);
         index.clear();
         docLengths.clear();
         docNames.clear();
@@ -374,7 +378,6 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         try {
             datafile.seek(ptr);
             datafile.writeLong(entry.ptr);
-            positionUsed.add(ptr);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -386,7 +389,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             datafile.seek(ptr);
             entry.ptr = datafile.readLong();
         } catch ( IOException e ) {
-            e.printStackTrace();
+            return null;
         }
         return entry;
     }
@@ -401,14 +404,13 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             Pair data = readData(pos, datafile);
             String token = data.data.split("\\*")[0];
 
-            if (token.equals("zombie") || token.equals("attack")) {
-                System.err.println("hhhhh");
-            }
-
             Entry entry = new Entry(pos);
             long hash = hashcode(token);
-            while (positionUsed.contains(hash)) {
+
+            Entry position = readEntry(hash, dictionaryFileFinal);
+            while (position != null && position.ptr != 0) {
                 hash += size_dict;
+                position = readEntry(hash, dictionaryFileFinal);
             }
             writeEntry(entry, hash, dictionaryFileFinal);
             pos += data.size + 1;
@@ -435,6 +437,7 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
             String[] info = data.data.split("\\*");
             String word = info[0];
             if (word.equals(token)) {
+                System.out.println(coll);
                 return new PostingsList(info[1]);
             }
             ++coll;
