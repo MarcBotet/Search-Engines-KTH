@@ -48,23 +48,48 @@ public class Searcher {
         query.queryterm.forEach((q) -> postingsLists.add(index.getPostings(q.term)));
         //postingsLists.removeAll(Collections.singleton(null));
 
-
-        if (postingsLists.size() == 1) return postingsLists.get(0);
-        else if (postingsLists.isEmpty()) return null;
+        if (postingsLists.isEmpty()) return null;
 
         switch (queryType) {
             case INTERSECTION_QUERY:
                 if (postingsLists.contains(null)) return null;
+                if (postingsLists.size() == 1) return postingsLists.get(0);
                 return searchIntersection(postingsLists);
             case PHRASE_QUERY:
                 if (postingsLists.contains(null)) return null;
+                if (postingsLists.size() == 1) return postingsLists.get(0);
                 return searchPhrase(postingsLists);
             case RANKED_QUERY:
-                // do something
+                return searchTfidf(postingsLists);
             default:
                 return postingsLists.get(0); // just to do something
         }
     }
+
+    private PostingsList searchTfidf(ArrayList<PostingsList> postingsLists) {
+        PostingsList postingsList = postingsLists.get(0);
+        calculateScore(postingsList);
+        Collections.sort(postingsList.getList());
+        return postingsList;
+    }
+
+    private void calculateScore(PostingsList postingsList) {
+        int N = index.docNames.size();
+        int df = postingsList.size();
+        for (PostingsEntry postingsEntry : postingsList.getList()) {
+            int tf = postingsEntry.offsets.size();
+            int lend = index.docLengths.get(postingsEntry.docID);
+            double score = calculate_tf_idf(lend, tf, df, N);
+            postingsEntry.score = score;
+        }
+    }
+
+
+    private double calculate_tf_idf(int lend, int tf, int df, int N) {
+        double idf = Math.log((double) N / df);
+        return tf * idf / lend;
+    }
+
 
     private PostingsList searchIntersection(PostingsList q1, PostingsList q2) {
         PostingsList answer = new PostingsList();
