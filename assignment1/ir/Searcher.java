@@ -66,11 +66,55 @@ public class Searcher {
         }
     }
 
-    private PostingsList searchTfidf(ArrayList<PostingsList> postingsLists) {
-        PostingsList postingsList = postingsLists.get(0);
+    private PostingsList searchTfidf1(PostingsList postingsList) {
         calculateScore(postingsList);
         Collections.sort(postingsList.getList());
         return postingsList;
+    }
+
+    private PostingsList searchTfidf(ArrayList<PostingsList> postingsLists) {
+        if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0));
+        for (PostingsList postingsList : postingsLists) {
+            calculateScore(postingsList);
+        }
+        return union(postingsLists);
+    }
+
+    private PostingsList union(ArrayList<PostingsList> postingsLists) {
+        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1));
+        for (PostingsList postingsList : postingsLists) {
+            answer = mergePostingList(answer, postingsList);
+        }
+        Collections.sort(answer.getList());
+        return answer;
+    }
+
+    private PostingsList mergePostingList(PostingsList p1, PostingsList p2) {
+        PostingsList answer = new PostingsList();
+        int i = 0;
+        int j = 0;
+        while (i < p1.size() && j < p2.size()) {
+            PostingsEntry postingsEntry1 = p1.get(i);
+            PostingsEntry postingsEntry2 = p2.get(j);
+            if (postingsEntry1.docID == postingsEntry2.docID) {
+                double score = postingsEntry1.score + postingsEntry2.score;
+                answer.addEntry(new PostingsEntry(postingsEntry1.docID, score));
+                ++i;
+                ++j;
+            } else if (postingsEntry1.docID < postingsEntry2.docID) {
+                answer.addEntry(postingsEntry1);
+                i++;
+            } else {
+                answer.addEntry(postingsEntry2);
+                ++j;
+            }
+        }
+        if (i < p1.size()) {
+            answer.addAll(p1, i);
+        } else if (j < p2.size()) {
+            answer.addAll(p2, j);
+        }
+        return answer;
     }
 
     private void calculateScore(PostingsList postingsList) {
