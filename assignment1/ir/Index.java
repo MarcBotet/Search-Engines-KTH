@@ -26,11 +26,16 @@ public interface Index {
     /** Mapping from document identifier to its pagerank. */
     public HashMap<Integer, Double> pageRank = new HashMap<>();
 
+    /** Mapping from document identifier to its euclidean length. */
+    public HashMap<Integer, Double> euclideanLength = new HashMap<>();
+
     /** Inserts a token into the index. */
     public void insert( String token, int docID, int offset );
 
     /** Returns the postings for a given term. */
     public PostingsList getPostings( String token );
+
+    public void computeEuclideanLength();
 
     /** This method is called on exit. */
     public void cleanup();

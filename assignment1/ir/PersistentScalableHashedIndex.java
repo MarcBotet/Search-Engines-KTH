@@ -471,4 +471,8 @@ public class PersistentScalableHashedIndex extends PersistentHashedIndex {
         return hash*size_dict;
     }
 
+    public void computeEuclideanLength() {
+
+    }
+
 }

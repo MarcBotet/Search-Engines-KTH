@@ -99,6 +99,7 @@ public class PersistentHashedIndex implements Index {
 
         try {
             readDocInfo();
+            readEuclideanLength();
         } catch ( FileNotFoundException e ) {
         } catch ( IOException e ) {
             e.printStackTrace();
@@ -219,6 +220,19 @@ public class PersistentHashedIndex implements Index {
         freader.close();
     }
 
+    private void readEuclideanLength() throws IOException {
+        File file = new File( INDEXDIR + "/euclidean.txt" );
+        FileReader freader = new FileReader(file);
+        try (BufferedReader br = new BufferedReader(freader)) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] data = line.split(":");
+                euclideanLength.put(new Integer(data[0]), new Double(data[1]));
+            }
+        }
+        freader.close();
+    }
+
 
     /**
      *  Write the index to files.
@@ -305,6 +319,40 @@ public class PersistentHashedIndex implements Index {
     public long hashcode(String code) {
         long hash = (code.hashCode() & 0xfffffff ) % TABLESIZE;
         return hash*size_dict;
+    }
+
+    public void computeEuclideanLength() {
+        int N = docNames.size();
+        for (Map.Entry<String, PostingsList> entry : index.entrySet()) {
+            int df = entry.getValue().size();
+            double idf = Math.log((double) N / df);
+            for (PostingsEntry postingsEntry : entry.getValue().getList()) {
+                Double value = euclideanLength.get(postingsEntry.docID);
+                if (value != null) {
+                    double v = postingsEntry.offsets.size() * idf;
+                    value += Math.pow(v, 2);
+                } else {
+                    value = Math.pow(postingsEntry.offsets.size() * idf, 2);
+                }
+                euclideanLength.put(postingsEntry.docID, value);
+            }
+        }
+
+        StringBuilder s = new StringBuilder();
+        for (Map.Entry<Integer, Double> entry : euclideanLength.entrySet()) {
+            Double v = Math.sqrt(entry.getValue());
+            euclideanLength.put(entry.getKey(), v);
+            s.append(entry.getKey()).append(":").append(v).append("\n");
+        }
+
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(INDEXDIR + "/euclidean.txt"));
+            writer.write(s.toString());
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
 

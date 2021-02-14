@@ -44,7 +44,7 @@ public class Searcher {
      *
      * @return A postings list representing the result of the query.
      */
-    public PostingsList search(Query query, QueryType queryType, RankingType rankingType) {
+    public PostingsList search(Query query, QueryType queryType, RankingType rankingType, NormalizationType normalizationType) {
 
         // list of postingsList fot each token in the query
         ArrayList<PostingsList> postingsLists = new ArrayList<>();
@@ -64,17 +64,17 @@ public class Searcher {
                 return searchPhrase(postingsLists);
             case RANKED_QUERY:
                 if (rankingType.equals(RankingType.COMBINATION)) {
-                    return combination(postingsLists);
+                    return combination(postingsLists, normalizationType);
                 } else
-                    return searchRanking(postingsLists, rankingType);
+                    return searchRanking(postingsLists, rankingType, normalizationType);
             default:
                 return postingsLists.get(0); // just to do something
         }
     }
 
-    private PostingsList combination(ArrayList<PostingsList> postingsLists) {
-        PostingsList tfidf = searchRankingComb(postingsLists, RankingType.TF_IDF);
-        PostingsList pagerank = searchRankingComb(postingsLists, RankingType.PAGERANK);
+    private PostingsList combination(ArrayList<PostingsList> postingsLists, NormalizationType normalizationType) {
+        PostingsList tfidf = searchRankingComb(postingsLists, RankingType.TF_IDF, normalizationType);
+        PostingsList pagerank = searchRankingComb(postingsLists, RankingType.PAGERANK, normalizationType);
         totalTfIdf = 0.;
         for (PostingsEntry postingsEntry : tfidf.getList()) {
             totalTfIdf += postingsEntry.score;
@@ -86,13 +86,14 @@ public class Searcher {
     }
 
 
-    private PostingsList searchRankingComb(ArrayList<PostingsList> postingsLists, RankingType rankingType) {
+    private PostingsList searchRankingComb(ArrayList<PostingsList> postingsLists, RankingType rankingType,
+                                           NormalizationType normalizationType) {
 
         for (PostingsList postingsList : postingsLists) {
             switch (rankingType) {
                 case TF_IDF:
-                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0));
-                    calculateTfIdf(postingsList);
+                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0), normalizationType);
+                    calculateTfIdf(postingsList, normalizationType);
                     break;
                 case PAGERANK:
                     if (postingsLists.size() == 1) return pagerank1(postingsLists.get(0));
@@ -108,8 +109,8 @@ public class Searcher {
     }
 
 
-    private PostingsList searchTfidf1(PostingsList postingsList) {
-        calculateTfIdf(postingsList);
+    private PostingsList searchTfidf1(PostingsList postingsList, NormalizationType normalizationType) {
+        calculateTfIdf(postingsList, normalizationType);
         Collections.sort(postingsList.getList());
         return postingsList;
     }
@@ -120,13 +121,14 @@ public class Searcher {
         return postingsList;
     }
 
-    private PostingsList searchRanking(ArrayList<PostingsList> postingsLists, RankingType rankingType) {
+    private PostingsList searchRanking(ArrayList<PostingsList> postingsLists, RankingType rankingType,
+                                       NormalizationType normalizationType) {
 
         for (PostingsList postingsList : postingsLists) {
             switch (rankingType) {
                 case TF_IDF:
-                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0));
-                    calculateTfIdf(postingsList);
+                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0),normalizationType);
+                    calculateTfIdf(postingsList,normalizationType);
                     break;
                 case PAGERANK:
                     if (postingsLists.size() == 1) return pagerank1(postingsLists.get(0));
@@ -192,20 +194,24 @@ public class Searcher {
         }
     }
 
-    private void calculateTfIdf(PostingsList postingsList) {
+    private void calculateTfIdf(PostingsList postingsList, NormalizationType normalizationType) {
         int N = index.docNames.size();
         int df = postingsList.size();
         double idf = Math.log((double) N / df);
         for (PostingsEntry postingsEntry : postingsList.getList()) {
             int tf = postingsEntry.offsets.size();
-            int lend = index.docLengths.get(postingsEntry.docID);
+            double lend;
+            if (normalizationType.equals(NormalizationType.EUCLIDEAN)) {
+                lend = index.euclideanLength.get(postingsEntry.docID);
+            }
+            else lend = Double.valueOf(index.docLengths.get(postingsEntry.docID));
             double score = calculate_tf_idf(lend, tf, idf);
             postingsEntry.score = score;
         }
     }
 
 
-    private double calculate_tf_idf(int lend, int tf, double idf) {
+    private double calculate_tf_idf(double lend, int tf, double idf) {
         return tf * idf / lend;
     }
 

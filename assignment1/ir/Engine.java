@@ -84,6 +84,7 @@ public class Engine {
                     File dokDir = new File( dirNames.get( i ));
                     indexer.processFiles( dokDir, is_indexing );
                 }
+                index.computeEuclideanLength();
                 index.cleanup();
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 gui.displayInfoText( String.format( "Indexing done in %.1f seconds.", elapsedTime/1000.0 ));
