@@ -7,8 +7,10 @@
 
 package ir;
 
+import java.io.*;
 import java.util.ArrayList;
-import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *  This is the main class for the search engine.
@@ -48,10 +50,11 @@ public class Engine {
     String pic_file = "";
 
     /** The file containing the pageranks. */
-    String rank_file = "";
+    String rank_file = "./pagerank/pageranks.txt";
 
     /** For persistent indexes, we might not need to do any indexing. */
     boolean is_indexing = true;
+
 
 
     /* ----------------------------------------------- */
@@ -88,7 +91,49 @@ public class Engine {
         } else {
             gui.displayInfoText( "Index is loaded from disk" );
         }
+        calculatePagerank();
     }
+
+    private void calculatePagerank() {
+        File file = new File(rank_file);
+        if (file.exists()) {
+            readPageRank();
+        } else {
+            PageRank pageRank = new PageRank("./pagerank/linksDavis.txt");
+            pageRank.topN(30);
+            pageRank.writePageRank(reverseDocNames(),rank_file);
+            readPageRank();
+        }
+    }
+
+
+
+    private void readPageRank() {
+        try (BufferedReader br = new BufferedReader(new FileReader(rank_file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] res = line.split(",");
+                index.pageRank.put(Integer.parseInt(res[0]), Double.parseDouble(res[1]));
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private HashMap<String, Integer> reverseDocNames() {
+        HashMap<String, Integer> answer = new HashMap<>();
+        for(Map.Entry<Integer, String> entry : index.docNames.entrySet()) {
+            String name = entry.getValue();
+            if (entry.getKey().equals(14498)) {
+                System.err.println("ss");
+            }
+            answer.put(name.split("\\\\")[2], entry.getKey());
+        }
+        return answer;
+    }
+
 
 
     /* ----------------------------------------------- */

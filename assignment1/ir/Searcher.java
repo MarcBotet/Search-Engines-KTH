@@ -28,6 +28,9 @@ public class Searcher {
      */
     KGramIndex kgIndex;
 
+    Double totalTfIdf = 0.;
+    Double totalPageRank= 0.;
+
     /**
      * Constructor
      */
@@ -60,36 +63,90 @@ public class Searcher {
                 if (postingsLists.size() == 1) return postingsLists.get(0);
                 return searchPhrase(postingsLists);
             case RANKED_QUERY:
-                return searchTfidf(postingsLists);
+                if (rankingType.equals(RankingType.COMBINATION)) {
+                    return combination(postingsLists);
+                } else
+                    return searchRanking(postingsLists, rankingType);
             default:
                 return postingsLists.get(0); // just to do something
         }
     }
 
+    private PostingsList combination(ArrayList<PostingsList> postingsLists) {
+        PostingsList tfidf = searchRankingComb(postingsLists, RankingType.TF_IDF);
+        PostingsList pagerank = searchRankingComb(postingsLists, RankingType.PAGERANK);
+        totalTfIdf = 0.;
+        for (PostingsEntry postingsEntry : tfidf.getList()) {
+            totalTfIdf += postingsEntry.score;
+        }
+
+        PostingsList answer = mergePostingList(tfidf, pagerank, RankingType.COMBINATION);
+        Collections.sort(answer.getList());
+        return answer;
+    }
+
+
+    private PostingsList searchRankingComb(ArrayList<PostingsList> postingsLists, RankingType rankingType) {
+
+        for (PostingsList postingsList : postingsLists) {
+            switch (rankingType) {
+                case TF_IDF:
+                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0));
+                    calculateTfIdf(postingsList);
+                    break;
+                case PAGERANK:
+                    if (postingsLists.size() == 1) return pagerank1(postingsLists.get(0));
+                    calculatePageRank(postingsList);
+                    break;
+            }
+        }
+        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1), rankingType);
+        for (PostingsList postingsList : postingsLists) {
+            answer = mergePostingList(answer, postingsList, rankingType);
+        }
+        return answer;
+    }
+
+
     private PostingsList searchTfidf1(PostingsList postingsList) {
-        calculateScore(postingsList);
+        calculateTfIdf(postingsList);
         Collections.sort(postingsList.getList());
         return postingsList;
     }
 
-    private PostingsList searchTfidf(ArrayList<PostingsList> postingsLists) {
-        if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0));
-        for (PostingsList postingsList : postingsLists) {
-            calculateScore(postingsList);
-        }
-        return union(postingsLists);
+    private PostingsList pagerank1(PostingsList postingsList) {
+        calculatePageRank(postingsList);
+        Collections.sort(postingsList.getList());
+        return postingsList;
     }
 
-    private PostingsList union(ArrayList<PostingsList> postingsLists) {
-        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1));
+    private PostingsList searchRanking(ArrayList<PostingsList> postingsLists, RankingType rankingType) {
+
         for (PostingsList postingsList : postingsLists) {
-            answer = mergePostingList(answer, postingsList);
+            switch (rankingType) {
+                case TF_IDF:
+                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0));
+                    calculateTfIdf(postingsList);
+                    break;
+                case PAGERANK:
+                    if (postingsLists.size() == 1) return pagerank1(postingsLists.get(0));
+                    calculatePageRank(postingsList);
+                    break;
+            }
+        }
+        return union(postingsLists, rankingType);
+    }
+
+    private PostingsList union(ArrayList<PostingsList> postingsLists, RankingType rankingType) {
+        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1), rankingType);
+        for (PostingsList postingsList : postingsLists) {
+            answer = mergePostingList(answer, postingsList, rankingType);
         }
         Collections.sort(answer.getList());
         return answer;
     }
 
-    private PostingsList mergePostingList(PostingsList p1, PostingsList p2) {
+    private PostingsList mergePostingList(PostingsList p1, PostingsList p2,RankingType rankingType) {
         PostingsList answer = new PostingsList();
         int i = 0;
         int j = 0;
@@ -97,7 +154,19 @@ public class Searcher {
             PostingsEntry postingsEntry1 = p1.get(i);
             PostingsEntry postingsEntry2 = p2.get(j);
             if (postingsEntry1.docID == postingsEntry2.docID) {
-                double score = postingsEntry1.score + postingsEntry2.score;
+                double score = 0.;
+                switch (rankingType) {
+                    case TF_IDF:
+                        score = postingsEntry1.score + postingsEntry2.score;
+                        break;
+                    case PAGERANK:
+                        score = postingsEntry1.score;
+                        break;
+                    case COMBINATION:
+                        score = postingsEntry1.score/ totalTfIdf + postingsEntry2.score;
+                        break;
+                }
+
                 answer.addEntry(new PostingsEntry(postingsEntry1.docID, score));
                 ++i;
                 ++j;
@@ -117,20 +186,26 @@ public class Searcher {
         return answer;
     }
 
-    private void calculateScore(PostingsList postingsList) {
+    private void calculatePageRank(PostingsList postingsList) {
+        for (PostingsEntry postingsEntry : postingsList.getList()) {
+            postingsEntry.score = index.pageRank.get(postingsEntry.docID);
+        }
+    }
+
+    private void calculateTfIdf(PostingsList postingsList) {
         int N = index.docNames.size();
         int df = postingsList.size();
+        double idf = Math.log((double) N / df);
         for (PostingsEntry postingsEntry : postingsList.getList()) {
             int tf = postingsEntry.offsets.size();
             int lend = index.docLengths.get(postingsEntry.docID);
-            double score = calculate_tf_idf(lend, tf, df, N);
+            double score = calculate_tf_idf(lend, tf, idf);
             postingsEntry.score = score;
         }
     }
 
 
-    private double calculate_tf_idf(int lend, int tf, int df, int N) {
-        double idf = Math.log((double) N / df);
+    private double calculate_tf_idf(int lend, int tf, double idf) {
         return tf * idf / lend;
     }
 
