@@ -31,6 +31,9 @@ public class Searcher {
     Double totalTfIdf = 0.;
     Double totalPageRank= 0.;
 
+    static double Widf = 0.5;
+    static double Wpr = 0.5;
+
     /**
      * Constructor
      */
@@ -78,6 +81,11 @@ public class Searcher {
         totalTfIdf = 0.;
         for (PostingsEntry postingsEntry : tfidf.getList()) {
             totalTfIdf += postingsEntry.score;
+        }
+
+        totalPageRank = 0.;
+        for (PostingsEntry postingsEntry : pagerank.getList()) {
+            totalPageRank += postingsEntry.score;
         }
 
         PostingsList answer = mergePostingList(tfidf, pagerank, RankingType.COMBINATION);
@@ -165,7 +173,7 @@ public class Searcher {
                         score = postingsEntry1.score;
                         break;
                     case COMBINATION:
-                        score = postingsEntry1.score/ totalTfIdf + postingsEntry2.score;
+                        score = Widf * (postingsEntry1.score/ totalTfIdf) + Wpr*(postingsEntry2.score/totalPageRank);
                         break;
                 }
 
