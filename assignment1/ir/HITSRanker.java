@@ -18,6 +18,8 @@ public class HITSRanker {
      */
     final static int MAX_NUMBER_OF_STEPS = 1000;
 
+    final static int MAX_NUMBER_OF_DOCS = 2000000;
+
     /**
      *   Convergence criterion: hub and authority scores do not 
      *   change more that EPSILON from one iteration to another.
@@ -34,6 +36,14 @@ public class HITSRanker {
      */
     HashMap<String,Integer> titleToId = new HashMap<String,Integer>();
 
+    /** Mapping from document identifiers to document names. */
+    public HashMap<String,Integer> nameToId = new HashMap<>();
+
+    /**
+     * Mapping from document names to document numbers.
+     */
+    HashSet<Integer> docs = new HashSet<>();
+
     /**
      *   Sparse vector containing hub scores
      */
@@ -43,6 +53,11 @@ public class HITSRanker {
      *   Sparse vector containing authority scores
      */
     HashMap<Integer,Double> authorities;
+
+    HashMap<Integer, HashSet<Integer>> A = new HashMap<>();
+    HashMap<Integer, HashSet<Integer>> At = new HashMap<>();
+
+    Integer number_of_docs;
 
     
     /* --------------------------------------------- */
@@ -95,6 +110,12 @@ public class HITSRanker {
     }
 
 
+    void readDocs2( String linksFilename, String titlesFilename ) {
+
+
+    }
+
+
     /**
      * Reads the files describing the graph of the given set of pages.
      *
@@ -102,9 +123,51 @@ public class HITSRanker {
      * @param      titlesFilename  File containing the mapping between nodeIDs and pages titles
      */
     void readDocs( String linksFilename, String titlesFilename ) {
-        //
-        // YOUR CODE HERE
-        //
+
+        try (BufferedReader br = new BufferedReader(new FileReader(titlesFilename))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] res = line.split(";");
+                //String[] nameList = res[1].split("/");
+                titleToId.put(res[1], new Integer(res[0]));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try (BufferedReader br = new BufferedReader(new FileReader(linksFilename))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] res = line.split(";");
+                int docID = new Integer(res[0]);
+                docs.add(docID);
+                if (res.length > 1) {
+                    String[] pointingTo = res[1].split(",");
+                    HashSet<Integer> toList = new HashSet<>();
+
+                    for (String id : pointingTo) {
+                        toList.add(new Integer(id));
+                    }
+                    A.put(docID, toList);
+
+                    HashSet<Integer> from;
+                    for (int target : toList) {
+                        docs.add(target);
+                        from = At.get(target);
+                        if (from == null) {
+                            from = new HashSet<>();
+                        }
+                        from.add(docID);
+                        At.put(target, from);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        System.err.println("Read " + docs.size() + " number of documents");
+        number_of_docs = docs.size();
+        docs.clear();
     }
 
     /**
@@ -113,9 +176,141 @@ public class HITSRanker {
      * @param      titles  The titles of the documents in the root set
      */
     private void iterate(String[] titles) {
-        //
-        // YOUR CODE HERE
-        //
+
+        int[] docID = new int[titles.length];
+
+        for (int i = 0; i < docID.length; ++i) {
+            Integer linkFile = titleToId.get(titles[i]);
+            //Integer idMatrix = docNumber.get(Integer.toString(linkFile));
+            docID[i] = linkFile;
+        }
+        iterate(docID);
+    }
+
+
+    private boolean diffVector(double[] hub, double[] hub_ant, double[] auth, double[] auth_ant) {
+        double diffH = 0.;
+        double diffA = 0.;
+        for (int i = 0; i < hub.length; ++i) {
+            diffH += Math.abs(hub[i] - hub_ant[i]);
+            diffA += Math.abs(auth[i] - auth_ant[i]);
+        }
+
+        //System.err.println("Diff hub "+diffH+" diff auth "+diffA);
+        return diffH < EPSILON && diffA < EPSILON;
+    }
+
+    private void normalize(double[] hub, double[] auth) {
+        double valueH = 0;
+        double valueA = 0;
+        for (int i = 0; i < hub.length; ++i) {
+            valueH += Math.pow(hub[i], 2);
+            valueA += Math.pow(auth[i], 2);
+        }
+        valueH = Math.sqrt(valueH);
+        valueA = Math.sqrt(valueA);
+        for (int i = 0; i < hub.length; i++) {
+            hub[i] /= valueH;
+            auth[i] /= valueA;
+        }
+    }
+
+
+    private void iterate(int[] docsID) {
+        double[] auth_ant = new double[number_of_docs+1];
+
+        double[] auth = new double[number_of_docs+1];
+        Arrays.fill(auth, 1.);
+
+        double[] hub = new double[number_of_docs+1];
+        Arrays.fill(hub, 1.);
+        double[] hub_ant = new double[number_of_docs+1];
+
+        int iteration = 0;
+        boolean stop = false;
+        while (!stop) {
+            double[] aux_auth = auth.clone();
+            double[] aux_hub = hub.clone();
+            for (int id : docsID) {
+                if (At.containsKey(id)) {
+                    for (int pointed : At.get(id)) {
+                        auth[id] += aux_hub[pointed];
+                    }
+                }
+                if (A.containsKey(id)) {
+                    for (int pointed : A.get(id)) {
+                        hub[id] += aux_auth[pointed];
+                    }
+                }
+            }
+
+            normalize(hub, auth);
+
+            stop = diffVector(hub, hub_ant, auth, auth_ant);
+            auth_ant = auth.clone();
+            hub_ant = hub.clone();
+            ++iteration;
+            //System.out.println("iteration " + iteration);
+        }
+        hubs = new HashMap<>();
+        authorities = new HashMap<>();
+        for (int i = 0; i < hub.length; ++i) {
+            if (hub[i] != 0) {
+                hubs.put(i, hub[i]);
+            }
+            if (auth[i] != 0) {
+                authorities.put(i, auth[i]);
+            }
+        }
+
+    }
+
+
+    private void iterateFast(int[] docsID) {
+        double[] auth_ant = new double[number_of_docs+1];
+
+        double[] auth = new double[number_of_docs+1];
+        Arrays.fill(auth, 1.);
+
+        double[] hub = new double[number_of_docs+1];
+        Arrays.fill(hub, 1.);
+        double[] hub_ant = new double[number_of_docs+1];
+
+        int iteration = 0;
+        boolean stop = false;
+        while (!stop) {
+            double[] aux_auth = auth.clone();
+            double[] aux_hub = hub.clone();
+            for (Integer id : At.keySet()) {
+                for (int pointed : At.get(id)) {
+                    auth[id] += aux_hub[pointed];
+                }
+            }
+            for (Integer id : A.keySet()) {
+                for (int pointed : A.get(id)) {
+                    hub[id] += aux_auth[pointed];
+                }
+            }
+
+            normalize(hub, auth);
+
+            stop = diffVector(hub, hub_ant, auth, auth_ant);
+            auth_ant = auth.clone();
+            hub_ant = hub.clone();
+            ++iteration;
+            //System.out.println("iteration " + iteration);
+        }
+        hubs = new HashMap<>();
+        authorities = new HashMap<>();
+        for (int i = 0; i < hub.length; ++i) {
+            if (hub[i] != 0) {
+                hubs.put(i, hub[i]);
+            }
+            if (auth[i] != 0) {
+                authorities.put(i, auth[i]);
+            }
+        }
+
     }
 
 
@@ -128,10 +323,36 @@ public class HITSRanker {
      * @return     A list of postings ranked according to the hub and authority scores.
      */
     PostingsList rank(PostingsList post) {
-        //
-        // YOUR CODE HERE
-        //
-        return null;
+        PostingsList answer = new PostingsList();
+
+        int[] docID = new int[post.size()];
+        HashMap<Integer, Integer> IDtoInternalID = new HashMap<>();
+        for (int i = 0; i < post.size(); ++i) {
+            int goodID = post.get(i).docID;
+            String name = index.docNames.get(goodID);
+            name = name.split("\\\\")[2];
+            if (name != null) {
+                Integer linkFile = titleToId.get(name);
+                docID[i] = linkFile;
+                IDtoInternalID.put(goodID, linkFile);
+            }
+
+        }
+        iterate(docID);
+        double sumHubs = hubs.values().stream().reduce(0., Double::sum);
+        double sumAuth = hubs.values().stream().reduce(0., Double::sum);
+        for (PostingsEntry postingsEntry : post.getList()) {
+            int id = postingsEntry.docID;
+            Integer internalID = IDtoInternalID.get(id);
+            if (internalID != null) {
+                double h = hubs.getOrDefault(internalID, 0.);
+                double auth = authorities.getOrDefault(internalID, 0.);
+                double score = ((h) + (auth)) / 2.;
+                answer.addEntry(new PostingsEntry(id, score));
+            }
+        }
+        Collections.sort(answer.getList());
+        return answer;
     }
 
 

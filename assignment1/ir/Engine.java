@@ -25,6 +25,9 @@ public class Engine {
     /** The indexer creating the search index. */
     Indexer indexer;
 
+    HITSRanker hitsRanker = new HITSRanker("./pagerank/linksDavis.txt",
+            "./pagerank/davisTitles.txt", index);
+
     /** K-gram index */
     KGramIndex kgIndex;
 
@@ -67,7 +70,7 @@ public class Engine {
     public Engine( String[] args ) {
         decodeArgs( args );
         indexer = new Indexer( index, kgIndex, patterns_file );
-        searcher = new Searcher( index, kgIndex );
+        searcher = new Searcher( index, kgIndex, hitsRanker );
         gui = new SearchGUI( this );
         gui.init();
         /* 
@@ -127,9 +130,6 @@ public class Engine {
         HashMap<String, Integer> answer = new HashMap<>();
         for(Map.Entry<Integer, String> entry : index.docNames.entrySet()) {
             String name = entry.getValue();
-            if (entry.getKey().equals(14498)) {
-                System.err.println("ss");
-            }
             answer.put(name.split("\\\\")[2], entry.getKey());
         }
         return answer;

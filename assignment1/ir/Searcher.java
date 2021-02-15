@@ -28,6 +28,8 @@ public class Searcher {
      */
     KGramIndex kgIndex;
 
+    HITSRanker hitsRanker;
+
     Double totalTfIdf = 0.;
     Double totalPageRank= 0.;
 
@@ -37,9 +39,10 @@ public class Searcher {
     /**
      * Constructor
      */
-    public Searcher(Index index, KGramIndex kgIndex) {
+    public Searcher(Index index, KGramIndex kgIndex, HITSRanker hitsRanker) {
         this.index = index;
         this.kgIndex = kgIndex;
+        this.hitsRanker = hitsRanker;
     }
 
     /**
@@ -142,6 +145,8 @@ public class Searcher {
                     if (postingsLists.size() == 1) return pagerank1(postingsLists.get(0));
                     calculatePageRank(postingsList);
                     break;
+                case HITS:
+                    return calculateHits(postingsLists);
             }
         }
         return union(postingsLists, rankingType);
@@ -175,6 +180,8 @@ public class Searcher {
                     case COMBINATION:
                         score = Widf * (postingsEntry1.score/ totalTfIdf) + Wpr*(postingsEntry2.score/totalPageRank);
                         break;
+                    case HITS:
+                        score = 0; // we don't care
                 }
 
                 answer.addEntry(new PostingsEntry(postingsEntry1.docID, score));
@@ -200,6 +207,16 @@ public class Searcher {
         for (PostingsEntry postingsEntry : postingsList.getList()) {
             postingsEntry.score = index.pageRank.get(postingsEntry.docID);
         }
+    }
+
+    private PostingsList calculateHits(ArrayList<PostingsList> postingsLists) {
+
+        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1), RankingType.HITS);
+        for (PostingsList postingsList : postingsLists) {
+            answer = mergePostingList(answer, postingsList, RankingType.HITS);
+        }
+
+        return hitsRanker.rank(answer);
     }
 
     private void calculateTfIdf(PostingsList postingsList, NormalizationType normalizationType) {

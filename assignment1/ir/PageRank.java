@@ -157,8 +157,9 @@ public class PageRank {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] res = line.split(";");
-                String[] nameList = res[1].split("/");
-                intToName.put(res[0], nameList[nameList.length-1]);
+                //String[] nameList = res[1].split("/");
+                //intToName.put(res[0], nameList[nameList.length-1]);
+                intToName.put(res[0], res[1]);
             }
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -169,14 +170,9 @@ public class PageRank {
 
     public void writePageRank(HashMap<String, Integer> namesToId, String rank_file) {
         StringBuilder s = new StringBuilder();
-        int cont=0;
         for (int i = 0; i < pageRankValue.length; ++i) {
             Integer id = namesToId.get(intToName.get(docName[i]));
             if (id != null) {
-                ++cont;
-                if(id.equals(14498)) {
-                    System.err.println("hshshsh");
-                }
                 s.append(id).append(",").append(pageRankValue[i]).append("\n");
             }
         }
