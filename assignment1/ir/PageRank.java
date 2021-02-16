@@ -55,13 +55,19 @@ public class PageRank {
 
     double[] pageRankValue;
 
+    public int NUMBER_OF_DOCS;
+
     /* --------------------------------------------- */
 
 
     public PageRank(String filename) {
-        int noOfDocs = readDocs(filename);
-        iterate(noOfDocs, 1000);
+        NUMBER_OF_DOCS = readDocs(filename);
+        iterate(NUMBER_OF_DOCS, 1000);
         mapping();
+    }
+
+    public PageRank(String filename, boolean MC) {
+        NUMBER_OF_DOCS = readDocs(filename);
     }
 
     /* --------------------------------------------- */
