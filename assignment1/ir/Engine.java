@@ -126,7 +126,7 @@ public class Engine {
         }
     }
 
-    private HashMap<String, Integer> reverseDocNames() {
+    public HashMap<String, Integer> reverseDocNames() {
         HashMap<String, Integer> answer = new HashMap<>();
         for(Map.Entry<Integer, String> entry : index.docNames.entrySet()) {
             String name = entry.getValue();
