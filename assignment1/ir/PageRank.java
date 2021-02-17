@@ -240,53 +240,7 @@ public class PageRank {
         } // why no every iteration?
         System.err.println("iteration "+iteration);
     }
-    double[] ranks;
 
-    void iterate2(int numberOfDocs, int maxIterations) {
-        Random random = new Random(42);
-        int it = maxIterations;
-        this.ranks = random.doubles(numberOfDocs).toArray();
-        while (it > 0) {
-            double[] ranksPrime = new double[numberOfDocs];
-            Arrays.fill(ranksPrime, BORED / numberOfDocs);
-            // for (var i = 0; i < ranksPrime.length; i++) {
-            // ranksPrime[i] += BORED*1/numberOfDocs;
-
-            // if (!link.containsKey(i)) {
-            // continue;
-            // }
-            link.entrySet().forEach(entry -> {
-                entry.getValue().keySet().forEach(outLink -> {
-
-                    ranksPrime[outLink] += ranks[entry.getKey()] * (1.0 - BORED) / out[entry.getKey()];
-                });
-            });
-
-            // System.out.println(""+ Arrays.stream(ranksPrime).sum() + " //// " +
-            // Arrays.stream(ranks).sum());
-
-            double diff = 0.0;
-            for (int i = 0; i < ranksPrime.length; i++) {
-                diff += Math.abs(ranks[i] - ranksPrime[i]);
-            }
-
-            System.err.println(diff);
-
-            this.ranks = ranksPrime.clone();
-
-            if (diff <= EPSILON) {
-                double sum = Arrays.stream(ranks).sum();
-                for (int i = 0; i < ranks.length; i++) {
-                    ranks[i] /= sum;
-                }
-
-                break;
-            }
-
-            it--;
-        }
-
-    }
 
 
     /* --------------------------------------------- */

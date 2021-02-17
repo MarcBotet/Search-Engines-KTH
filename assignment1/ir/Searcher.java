@@ -7,6 +7,8 @@
 
 package ir;
 
+import javafx.geometry.Pos;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -33,8 +35,8 @@ public class Searcher {
     Double totalTfIdf = 0.;
     Double totalPageRank= 0.;
 
-    static double Widf = 0.5;
-    static double Wpr = 0.5;
+    static double Widf = 0.6;
+    static double Wpr = 0.4;
 
     /**
      * Constructor
@@ -91,7 +93,19 @@ public class Searcher {
             totalPageRank += postingsEntry.score;
         }
 
-        PostingsList answer = mergePostingList(tfidf, pagerank, RankingType.COMBINATION);
+        PostingsList answer = new PostingsList();
+
+        for (int i = 0; i < pagerank.size(); ++i) {
+            PostingsEntry p = pagerank.get(i);
+            PostingsEntry tf = tfidf.get(i);
+            if (p.docID != tf.docID) {
+                System.err.println("uuuuups");
+            } else {
+                double score = Widf * (tf.score/ totalTfIdf) + Wpr*(p.score/totalPageRank);
+                answer.addEntry(new PostingsEntry(p.docID, score));
+            }
+        }
+
         Collections.sort(answer.getList());
         return answer;
     }
@@ -146,6 +160,7 @@ public class Searcher {
                     calculatePageRank(postingsList);
                     break;
                 case HITS:
+                    if (postingsLists.size() == 1) return hitsRanker.rank(postingsLists.get(0));
                     return calculateHits(postingsLists);
             }
         }
@@ -154,8 +169,8 @@ public class Searcher {
 
     private PostingsList union(ArrayList<PostingsList> postingsLists, RankingType rankingType) {
         PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1), rankingType);
-        for (PostingsList postingsList : postingsLists) {
-            answer = mergePostingList(answer, postingsList, rankingType);
+        for (int i = 2; i < postingsLists.size(); ++i) {
+            answer = mergePostingList(answer, postingsLists.get(i), rankingType);
         }
         Collections.sort(answer.getList());
         return answer;
@@ -205,7 +220,7 @@ public class Searcher {
 
     private void calculatePageRank(PostingsList postingsList) {
         for (PostingsEntry postingsEntry : postingsList.getList()) {
-            postingsEntry.score = index.pageRank.get(postingsEntry.docID);
+            postingsEntry.score = index.pageRank.getOrDefault(postingsEntry.docID, 0.);
         }
     }
 
