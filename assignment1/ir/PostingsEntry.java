@@ -27,6 +27,11 @@ public class PostingsEntry implements Comparable<PostingsEntry>, Serializable {
         this.offsets = offsets;
     }
 
+    public PostingsEntry(int docID, double score) {
+        this.docID = docID;
+        this.score = score;
+    }
+
     public PostingsEntry(String postingEntry) {
         String[] array = postingEntry.split(":");
         String docID = array[0];

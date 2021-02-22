@@ -7,6 +7,8 @@
 
 package ir;
 
+import javafx.geometry.Pos;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,12 +30,21 @@ public class Searcher {
      */
     KGramIndex kgIndex;
 
+    HITSRanker hitsRanker;
+
+    Double totalTfIdf = 0.;
+    Double totalPageRank= 0.;
+
+    static double Widf = 0.6;
+    static double Wpr = 0.4;
+
     /**
      * Constructor
      */
-    public Searcher(Index index, KGramIndex kgIndex) {
+    public Searcher(Index index, KGramIndex kgIndex, HITSRanker hitsRanker) {
         this.index = index;
         this.kgIndex = kgIndex;
+        this.hitsRanker = hitsRanker;
     }
 
     /**
@@ -41,30 +52,209 @@ public class Searcher {
      *
      * @return A postings list representing the result of the query.
      */
-    public PostingsList search(Query query, QueryType queryType, RankingType rankingType) {
+    public PostingsList search(Query query, QueryType queryType, RankingType rankingType, NormalizationType normalizationType) {
 
         // list of postingsList fot each token in the query
         ArrayList<PostingsList> postingsLists = new ArrayList<>();
         query.queryterm.forEach((q) -> postingsLists.add(index.getPostings(q.term)));
         //postingsLists.removeAll(Collections.singleton(null));
 
-
-        if (postingsLists.size() == 1) return postingsLists.get(0);
-        else if (postingsLists.isEmpty()) return null;
+        if (postingsLists.isEmpty()) return null;
 
         switch (queryType) {
             case INTERSECTION_QUERY:
                 if (postingsLists.contains(null)) return null;
+                if (postingsLists.size() == 1) return postingsLists.get(0);
                 return searchIntersection(postingsLists);
             case PHRASE_QUERY:
                 if (postingsLists.contains(null)) return null;
+                if (postingsLists.size() == 1) return postingsLists.get(0);
                 return searchPhrase(postingsLists);
             case RANKED_QUERY:
-                // do something
+                if (rankingType.equals(RankingType.COMBINATION)) {
+                    return combination(postingsLists, normalizationType);
+                } else
+                    return searchRanking(postingsLists, rankingType, normalizationType);
             default:
                 return postingsLists.get(0); // just to do something
         }
     }
+
+    private PostingsList combination(ArrayList<PostingsList> postingsLists, NormalizationType normalizationType) {
+        PostingsList tfidf = searchRankingComb(postingsLists, RankingType.TF_IDF, normalizationType);
+        PostingsList pagerank = searchRankingComb(postingsLists, RankingType.PAGERANK, normalizationType);
+        totalTfIdf = 0.;
+        for (PostingsEntry postingsEntry : tfidf.getList()) {
+            totalTfIdf += postingsEntry.score;
+        }
+
+        totalPageRank = 0.;
+        for (PostingsEntry postingsEntry : pagerank.getList()) {
+            totalPageRank += postingsEntry.score;
+        }
+
+        PostingsList answer = new PostingsList();
+
+        for (int i = 0; i < pagerank.size(); ++i) {
+            PostingsEntry p = pagerank.get(i);
+            PostingsEntry tf = tfidf.get(i);
+            if (p.docID != tf.docID) {
+                System.err.println("uuuuups");
+            } else {
+                double score = Widf * (tf.score/ totalTfIdf) + Wpr*(p.score/totalPageRank);
+                answer.addEntry(new PostingsEntry(p.docID, score));
+            }
+        }
+
+        Collections.sort(answer.getList());
+        return answer;
+    }
+
+
+    private PostingsList searchRankingComb(ArrayList<PostingsList> postingsLists, RankingType rankingType,
+                                           NormalizationType normalizationType) {
+
+        for (PostingsList postingsList : postingsLists) {
+            switch (rankingType) {
+                case TF_IDF:
+                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0), normalizationType);
+                    calculateTfIdf(postingsList, normalizationType);
+                    break;
+                case PAGERANK:
+                    if (postingsLists.size() == 1) return pagerank1(postingsLists.get(0));
+                    calculatePageRank(postingsList);
+                    break;
+            }
+        }
+        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1), rankingType);
+        for (PostingsList postingsList : postingsLists) {
+            answer = mergePostingList(answer, postingsList, rankingType);
+        }
+        return answer;
+    }
+
+
+    private PostingsList searchTfidf1(PostingsList postingsList, NormalizationType normalizationType) {
+        calculateTfIdf(postingsList, normalizationType);
+        Collections.sort(postingsList.getList());
+        return postingsList;
+    }
+
+    private PostingsList pagerank1(PostingsList postingsList) {
+        calculatePageRank(postingsList);
+        Collections.sort(postingsList.getList());
+        return postingsList;
+    }
+
+    private PostingsList searchRanking(ArrayList<PostingsList> postingsLists, RankingType rankingType,
+                                       NormalizationType normalizationType) {
+
+        for (PostingsList postingsList : postingsLists) {
+            switch (rankingType) {
+                case TF_IDF:
+                    if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0),normalizationType);
+                    calculateTfIdf(postingsList,normalizationType);
+                    break;
+                case PAGERANK:
+                    if (postingsLists.size() == 1) return pagerank1(postingsLists.get(0));
+                    calculatePageRank(postingsList);
+                    break;
+                case HITS:
+                    if (postingsLists.size() == 1) return hitsRanker.rank(postingsLists.get(0));
+                    return calculateHits(postingsLists);
+            }
+        }
+        return union(postingsLists, rankingType);
+    }
+
+    private PostingsList union(ArrayList<PostingsList> postingsLists, RankingType rankingType) {
+        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1), rankingType);
+        for (int i = 2; i < postingsLists.size(); ++i) {
+            answer = mergePostingList(answer, postingsLists.get(i), rankingType);
+        }
+        Collections.sort(answer.getList());
+        return answer;
+    }
+
+    private PostingsList mergePostingList(PostingsList p1, PostingsList p2,RankingType rankingType) {
+        PostingsList answer = new PostingsList();
+        int i = 0;
+        int j = 0;
+        while (i < p1.size() && j < p2.size()) {
+            PostingsEntry postingsEntry1 = p1.get(i);
+            PostingsEntry postingsEntry2 = p2.get(j);
+            if (postingsEntry1.docID == postingsEntry2.docID) {
+                double score = 0.;
+                switch (rankingType) {
+                    case TF_IDF:
+                        score = postingsEntry1.score + postingsEntry2.score;
+                        break;
+                    case PAGERANK:
+                        score = postingsEntry1.score;
+                        break;
+                    case COMBINATION:
+                        score = Widf * (postingsEntry1.score/ totalTfIdf) + Wpr*(postingsEntry2.score/totalPageRank);
+                        break;
+                    case HITS:
+                        score = 0; // we don't care
+                }
+
+                answer.addEntry(new PostingsEntry(postingsEntry1.docID, score));
+                ++i;
+                ++j;
+            } else if (postingsEntry1.docID < postingsEntry2.docID) {
+                answer.addEntry(postingsEntry1);
+                i++;
+            } else {
+                answer.addEntry(postingsEntry2);
+                ++j;
+            }
+        }
+        if (i < p1.size()) {
+            answer.addAll(p1, i);
+        } else if (j < p2.size()) {
+            answer.addAll(p2, j);
+        }
+        return answer;
+    }
+
+    private void calculatePageRank(PostingsList postingsList) {
+        for (PostingsEntry postingsEntry : postingsList.getList()) {
+            postingsEntry.score = index.pageRank.getOrDefault(postingsEntry.docID, 0.);
+        }
+    }
+
+    private PostingsList calculateHits(ArrayList<PostingsList> postingsLists) {
+
+        PostingsList answer = mergePostingList(postingsLists.get(0), postingsLists.get(1), RankingType.HITS);
+        for (PostingsList postingsList : postingsLists) {
+            answer = mergePostingList(answer, postingsList, RankingType.HITS);
+        }
+
+        return hitsRanker.rank(answer);
+    }
+
+    private void calculateTfIdf(PostingsList postingsList, NormalizationType normalizationType) {
+        int N = index.docNames.size();
+        int df = postingsList.size();
+        double idf = Math.log((double) N / df);
+        for (PostingsEntry postingsEntry : postingsList.getList()) {
+            int tf = postingsEntry.offsets.size();
+            double lend;
+            if (normalizationType.equals(NormalizationType.EUCLIDEAN)) {
+                lend = index.euclideanLength.get(postingsEntry.docID);
+            }
+            else lend = Double.valueOf(index.docLengths.get(postingsEntry.docID));
+            double score = calculate_tf_idf(lend, tf, idf);
+            postingsEntry.score = score;
+        }
+    }
+
+
+    private double calculate_tf_idf(double lend, int tf, double idf) {
+        return tf * idf / lend;
+    }
+
 
     private PostingsList searchIntersection(PostingsList q1, PostingsList q2) {
         PostingsList answer = new PostingsList();
