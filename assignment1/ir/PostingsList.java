@@ -16,6 +16,7 @@ public class PostingsList implements Comparable<PostingsList> {
      * The postings list
      */
     private ArrayList<PostingsEntry> list = new ArrayList<PostingsEntry>();
+    public double weight = 1.;
 
     public PostingsList() {}
 
@@ -25,6 +26,12 @@ public class PostingsList implements Comparable<PostingsList> {
             list.add(new PostingsEntry(entry));
         }
     }
+
+    public PostingsList(PostingsList postingsList, double score) {
+        list = (ArrayList<PostingsEntry>) postingsList.list.clone();
+        weight = score;
+    }
+
 
 
     /**

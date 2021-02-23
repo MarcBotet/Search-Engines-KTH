@@ -56,7 +56,7 @@ public class Searcher {
 
         // list of postingsList fot each token in the query
         ArrayList<PostingsList> postingsLists = new ArrayList<>();
-        query.queryterm.forEach((q) -> postingsLists.add(index.getPostings(q.term)));
+        query.queryterm.forEach((q) -> postingsLists.add(new PostingsList(index.getPostings(q.term), q.weight)));
         //postingsLists.removeAll(Collections.singleton(null));
 
         if (postingsLists.isEmpty()) return null;
@@ -246,7 +246,7 @@ public class Searcher {
             }
             else lend = Double.valueOf(index.docLengths.get(postingsEntry.docID));
             double score = calculate_tf_idf(lend, tf, idf);
-            postingsEntry.score = score;
+            postingsEntry.score = score * postingsList.weight;
         }
     }
 
