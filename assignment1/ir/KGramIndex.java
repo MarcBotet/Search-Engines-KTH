@@ -51,26 +51,61 @@ public class KGramIndex {
      *  Get intersection of two postings lists
      */
     private List<KGramPostingsEntry> intersect(List<KGramPostingsEntry> p1, List<KGramPostingsEntry> p2) {
-        // 
-        // YOUR CODE HERE
-        //
-        return null;
-    }
+        List<KGramPostingsEntry> answer = new ArrayList<>();
+        int i = 0;
+        int j = 0;
 
+        while (i < p1.size() && j < p2.size()) {
+            KGramPostingsEntry kGramPostingsEntry1 = p1.get(i);
+            KGramPostingsEntry kGramPostingsEntry2 = p2.get(j);
+            if (kGramPostingsEntry1.tokenID == kGramPostingsEntry2.tokenID) {
+                answer.add(kGramPostingsEntry1);
+                ++i;
+                ++j;
+            } else if (kGramPostingsEntry1.tokenID < kGramPostingsEntry2.tokenID) ++i;
+            else ++j;
+        }
+
+        return answer;
+    }
 
     /** Inserts all k-grams from a token into the index. */
     public void insert( String token ) {
-        //
-        // YOUR CODE HERE
-        //
+        if (term2id.containsKey(token)) return;
+        int id = generateTermID();
+        id2term.put(id, token);
+        term2id.put(token, id);
+        HashSet<String> Kgrams = getKgram(token);
+        KGramPostingsEntry kGramPostingsEntry = new KGramPostingsEntry(id);
+        for (String gram : Kgrams) {
+            List<KGramPostingsEntry> list = index.get(gram);
+            if (list != null) {
+                list.add(kGramPostingsEntry);
+            } else {
+                list = new ArrayList<>();
+                list.add(kGramPostingsEntry);
+                index.put(gram, list);
+            }
+        }
+    }
+
+    private HashSet<String> getKgram(String token) {
+        HashSet<String> answer = new HashSet<>();
+        token = "^" + token + "$";
+        for (int i = 0; i <= token.length()-K; ++i) {
+            StringBuilder kgram = new StringBuilder();
+            for (int j = 0; j < K; ++j) {
+                kgram.append(token.charAt(i+j));
+            }
+            answer.add(kgram.toString());
+        }
+
+        return answer;
     }
 
     /** Get postings for the given k-gram */
     public List<KGramPostingsEntry> getPostings(String kgram) {
-        //
-        // YOUR CODE HERE
-        //
-        return null;
+        return index.getOrDefault(kgram, new ArrayList<>());
     }
 
     /** Get id of a term */

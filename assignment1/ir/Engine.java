@@ -29,7 +29,7 @@ public class Engine {
             "./pagerank/davisTitles.txt", index);
 
     /** K-gram index */
-    KGramIndex kgIndex;
+    KGramIndex kgIndex = new KGramIndex(2);
 
     /** The searcher used to search the index. */
     Searcher searcher;
