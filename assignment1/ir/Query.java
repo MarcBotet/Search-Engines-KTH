@@ -125,16 +125,16 @@ public class Query {
             if (!docIsRelevant[i]) continue;
             int docId = results.get(i).docID;
             String path = engine.index.docNames.get(docId);
+            if (path.equals("..\\davisWiki\\Math.f")) {
+                path = "..\\davisWiki\\Mathematics.f";
+            }
             processFile(query, path, patterns_file, number_relevant);
             ++cont;
             if (cont == number_relevant) break;
         }
 
         for (QueryTerm q : queryterm) {
-            Double score = query.get(q.term);
-            if (score != null) {
-                query.put(q.term, score + alpha);
-            }
+            query.merge(q.term, alpha, Double::sum);
         }
         // convert to our queryterm
         queryterm = new ArrayList<>();
