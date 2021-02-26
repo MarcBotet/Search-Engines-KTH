@@ -47,6 +47,29 @@ public class Searcher {
         this.hitsRanker = hitsRanker;
     }
 
+    private ArrayList<PostingsList> processQuery(Query query, QueryType queryType) {
+        ArrayList<PostingsList> postingsLists = new ArrayList<>();
+        WildCardSearch wildCardSearch = new WildCardSearch(index, kgIndex, query, queryType);
+
+        for (Query.QueryTerm q : query.queryterm) {
+            String term = q.term;
+            if (term.contains("*")) {
+                PostingsList p = wildCardSearch.wilcardWord(term);
+                if (p != null) postingsLists.add(p);
+                else postingsLists.addAll(wildCardSearch.queryPostings);
+                continue;
+            }
+            PostingsList post = index.getPostings(term);
+            if (post == null) {
+                postingsLists.add(null);
+            } else {
+                postingsLists.add(new PostingsList(post, q.weight));
+            }
+        }
+
+        return postingsLists;
+    }
+
     /**
      * Searches the index for postings matching the query.
      *
@@ -55,8 +78,9 @@ public class Searcher {
     public PostingsList search(Query query, QueryType queryType, RankingType rankingType, NormalizationType normalizationType) {
 
         // list of postingsList fot each token in the query
-        ArrayList<PostingsList> postingsLists = new ArrayList<>();
-        query.queryterm.forEach((q) -> postingsLists.add(new PostingsList(index.getPostings(q.term), q.weight)));
+        ArrayList<PostingsList> postingsLists = processQuery(query, queryType);
+
+        //query.queryterm.forEach((q) -> postingsLists.add(new PostingsList(index.getPostings(q.term), q.weight)));
         //postingsLists.removeAll(Collections.singleton(null));
 
         if (postingsLists.isEmpty()) return null;

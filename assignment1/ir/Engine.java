@@ -18,8 +18,8 @@ import java.util.Map;
 public class Engine {
 
     /** The inverted index. */
-    //Index index = new HashedIndex();
-    Index index = new PersistentHashedIndex();
+    Index index = new HashedIndex();
+    //Index index = new PersistentHashedIndex();
     //Index index = new PersistentScalableHashedIndex();
 
     /** The indexer creating the search index. */

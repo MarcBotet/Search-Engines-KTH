@@ -50,7 +50,7 @@ public class KGramIndex {
     /**
      *  Get intersection of two postings lists
      */
-    private List<KGramPostingsEntry> intersect(List<KGramPostingsEntry> p1, List<KGramPostingsEntry> p2) {
+    public List<KGramPostingsEntry> intersect(List<KGramPostingsEntry> p1, List<KGramPostingsEntry> p2) {
         List<KGramPostingsEntry> answer = new ArrayList<>();
         int i = 0;
         int j = 0;
@@ -75,7 +75,7 @@ public class KGramIndex {
         int id = generateTermID();
         id2term.put(id, token);
         term2id.put(token, id);
-        HashSet<String> Kgrams = getKgram(token);
+        HashSet<String> Kgrams = getKgram(token, false);
         KGramPostingsEntry kGramPostingsEntry = new KGramPostingsEntry(id);
         for (String gram : Kgrams) {
             List<KGramPostingsEntry> list = index.get(gram);
@@ -89,9 +89,9 @@ public class KGramIndex {
         }
     }
 
-    private HashSet<String> getKgram(String token) {
+    public HashSet<String> getKgram(String token, boolean tokenProcessed) {
         HashSet<String> answer = new HashSet<>();
-        token = "^" + token + "$";
+        if (!tokenProcessed) token = "^" + token + "$";
         for (int i = 0; i <= token.length()-K; ++i) {
             StringBuilder kgram = new StringBuilder();
             for (int j = 0; j < K; ++j) {
