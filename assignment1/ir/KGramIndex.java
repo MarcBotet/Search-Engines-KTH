@@ -37,6 +37,138 @@ public class KGramIndex {
         }
     }
 
+    public void save() {
+        // HashMap<String,List<KGramPostingsEntry>> index
+        try {
+            FileOutputStream myFileOutStream
+                    = new FileOutputStream(
+                    "./kgram/index.txt");
+
+            ObjectOutputStream myObjectOutStream
+                    = new ObjectOutputStream(myFileOutStream);
+
+            myObjectOutStream.writeObject(index);
+
+            // closing FileOutputStream and
+            // ObjectOutputStream
+            myObjectOutStream.close();
+            myFileOutStream.close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // HashMap<String,Integer> term2id
+        try {
+            FileOutputStream myFileOutStream
+                    = new FileOutputStream(
+                    "./kgram/term2id.txt");
+
+            ObjectOutputStream myObjectOutStream
+                    = new ObjectOutputStream(myFileOutStream);
+
+            myObjectOutStream.writeObject(term2id);
+
+            // closing FileOutputStream and
+            // ObjectOutputStream
+            myObjectOutStream.close();
+            myFileOutStream.close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // HashMap<Integer,String> id2term
+        try {
+            FileOutputStream myFileOutStream
+                    = new FileOutputStream(
+                    "./kgram/id2term.txt");
+
+            ObjectOutputStream myObjectOutStream
+                    = new ObjectOutputStream(myFileOutStream);
+
+            myObjectOutStream.writeObject(id2term);
+
+            // closing FileOutputStream and
+            // ObjectOutputStream
+            myObjectOutStream.close();
+            myFileOutStream.close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void load() {
+        // HashMap<String,List<KGramPostingsEntry>> index
+        try {
+            FileInputStream fileInput = new FileInputStream(
+                    "./kgram/index.txt");
+
+            ObjectInputStream objectInput
+                    = new ObjectInputStream(fileInput);
+
+            index = (HashMap<String,List<KGramPostingsEntry>>) objectInput.readObject();
+
+            objectInput.close();
+            fileInput.close();
+        }
+        catch (IOException obj1) {
+            obj1.printStackTrace();
+            return;
+        }
+        catch (ClassNotFoundException obj2) {
+            System.out.println("Class not found");
+            obj2.printStackTrace();
+            return;
+        }
+        // HashMap<String,Integer> term2id
+        try {
+            FileInputStream fileInput = new FileInputStream(
+                    "./kgram/term2id.txt");
+
+            ObjectInputStream objectInput
+                    = new ObjectInputStream(fileInput);
+
+            term2id = (HashMap<String, Integer>) objectInput.readObject();
+
+            objectInput.close();
+            fileInput.close();
+        }
+        catch (IOException obj1) {
+            obj1.printStackTrace();
+            return;
+        }
+        catch (ClassNotFoundException obj2) {
+            System.out.println("Class not found");
+            obj2.printStackTrace();
+            return;
+        }
+
+        // HashMap<Integer, String> id2term
+        try {
+            FileInputStream fileInput = new FileInputStream(
+                    "./kgram/id2term.txt");
+
+            ObjectInputStream objectInput
+                    = new ObjectInputStream(fileInput);
+
+            id2term = (HashMap<Integer, String>) objectInput.readObject();
+
+            objectInput.close();
+            fileInput.close();
+        }
+        catch (IOException obj1) {
+            obj1.printStackTrace();
+            return;
+        }
+        catch (ClassNotFoundException obj2) {
+            System.out.println("Class not found");
+            obj2.printStackTrace();
+            return;
+        }
+    }
+
     /** Generate the ID for an unknown term */
     private int generateTermID() {
         return ++lastTermID;

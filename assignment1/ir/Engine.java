@@ -18,8 +18,8 @@ import java.util.Map;
 public class Engine {
 
     /** The inverted index. */
-    Index index = new HashedIndex();
-    //Index index = new PersistentHashedIndex();
+    //Index index = new HashedIndex();
+    Index index = new PersistentHashedIndex();
     //Index index = new PersistentScalableHashedIndex();
 
     /** The indexer creating the search index. */
@@ -88,12 +88,17 @@ public class Engine {
                     indexer.processFiles( dokDir, is_indexing );
                 }
                 index.computeEuclideanLength();
+                kgIndex.save();
                 index.cleanup();
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 gui.displayInfoText( String.format( "Indexing done in %.1f seconds.", elapsedTime/1000.0 ));
             }
         } else {
-            gui.displayInfoText( "Index is loaded from disk" );
+            long startTime = System.currentTimeMillis();
+            kgIndex.load();
+            long elapsedTime = System.currentTimeMillis() - startTime;
+            gui.displayInfoText( String.format( "Indexing done in %.1f seconds.", elapsedTime/1000.0 ));
+            //gui.displayInfoText( "Index is loaded from disk" );
         }
         calculatePagerank();
     }
