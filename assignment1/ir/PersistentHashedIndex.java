@@ -293,7 +293,6 @@ public class PersistentHashedIndex implements Index {
             ++coll;
             pointer += size_dict;
         }
-        System.out.println(coll);
         return null;
     }
 

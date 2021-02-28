@@ -208,7 +208,7 @@ public class KGramIndex {
         id2term.put(id, token);
         term2id.put(token, id);
         HashSet<String> Kgrams = getKgram(token, false);
-        KGramPostingsEntry kGramPostingsEntry = new KGramPostingsEntry(id);
+        KGramPostingsEntry kGramPostingsEntry = new KGramPostingsEntry(id, Kgrams.size());
         for (String gram : Kgrams) {
             List<KGramPostingsEntry> list = index.get(gram);
             if (list != null) {
