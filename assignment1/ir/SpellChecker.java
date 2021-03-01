@@ -20,10 +20,28 @@ public class SpellChecker {
     class KGramStat implements Comparable {
         double score;
         String token;
+        Double sizePostingList;
+
+        KGramStat(String token) {
+            this.token = token;
+        }
 
         KGramStat(String token, double score) {
             this.token = token;
             this.score = score;
+        }
+
+        KGramStat(String token, double score, Double sizePostingList) {
+            this.token = token;
+            this.score = score;
+            this.sizePostingList = sizePostingList;
+        }
+
+        public Double getSizePostingList() {
+            if (sizePostingList == null) {
+                sizePostingList = (double) index.getPostings(token).size();
+            }
+            return sizePostingList;
         }
 
         public String getToken() {
@@ -31,12 +49,10 @@ public class SpellChecker {
         }
 
         public int compareTo(Object other) {
-            if (this.score == ((KGramStat)other).score) {
-                int thisSize = index.getPostings(this.token).size();
-                int otherSize = index.getPostings(((KGramStat) other).token).size();
-                return thisSize > otherSize ? -1 : 1;
-            }
-            return this.score < ((KGramStat)other).score ? -1 : 1;
+            if (this.score < ((KGramStat)other).score) return -1;
+            if (this.score > ((KGramStat)other).score) return 1;
+            if (this.getSizePostingList().equals(((KGramStat) other).getSizePostingList())) return 0;
+            return this.getSizePostingList() > ((KGramStat)other).getSizePostingList() ? -1 : 1;
         }
 
         public String toString() {
@@ -123,9 +139,7 @@ public class SpellChecker {
      *  <code>limit</code> ranked suggestions for spelling correction.
      */
     public String[] check(Query query, int limit) {
-        //per que tota la query y no només pels que han donat 0 posting? aaaah perque tota la query diu que 0?
-        // ara queryterm hauria de ser de mida 1
-        String[] answer = null;
+        List<List<KGramStat>> qCorrections = new ArrayList<>();
 
         for (Query.QueryTerm q : query.queryterm) {
             PostingsList token = index.getPostings(q.term);
@@ -134,11 +148,13 @@ public class SpellChecker {
                 ArrayList<String> candidates = jaccardCandidates(grams);
                 ArrayList<KGramStat> res = calculateLevenshteinDistance(candidates, q.term);
                 int size = Math.min(limit, res.size());
-                answer = new String[size];
-                for (int i = 0; i < size; ++i) answer[i] = res.get(i).getToken();
+                qCorrections.add(res.subList(0,size));
+            } else {
+                qCorrections.add(Collections.singletonList(new KGramStat(q.term)));
             }
         }
-        return answer;
+
+        return mergeCorrections(qCorrections, limit).stream().map(KGramStat::getToken).toArray(String[]::new);
     }
 
     private ArrayList<String> jaccardCandidates(HashSet<String> grams) {
@@ -173,9 +189,37 @@ public class SpellChecker {
      *  to <code>limit</code> corrected phrases.
      */
     private List<KGramStat> mergeCorrections(List<List<KGramStat>> qCorrections, int limit) {
-        //
-        // YOUR CODE HERE
-        //
-        return null;
+        if (qCorrections.size() == 1) return qCorrections.get(0);
+        List<KGramStat> answer = null;
+
+        for (List<KGramStat> options : qCorrections) {
+            if (answer == null) {
+                answer = options;
+            } else {
+                answer = mergeCorrections(answer, options, limit);
+            }
+        }
+
+        return answer;
+    }
+
+    private List<KGramStat> mergeCorrections(List<KGramStat> w1, List<KGramStat> w2, int limit) {
+        List<KGramStat> answer = new ArrayList<>();
+
+        for (KGramStat g : w1) {
+            String token = g.token;
+            double score = g.score;
+            double post = g.getSizePostingList()/ w1.size();
+
+            for (KGramStat g2 : w2) {
+                String aux = token + " " + g2.token;
+                double sc = score + g2.score;
+                Double pa = post + g2.getSizePostingList()/w2.size();
+                answer.add(new KGramStat(aux, sc, pa));
+            }
+        }
+
+        Collections.sort(answer);
+        return answer.subList(0, Math.min(limit, answer.size()));
     }
 }

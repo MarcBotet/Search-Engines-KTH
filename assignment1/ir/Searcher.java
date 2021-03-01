@@ -173,6 +173,7 @@ public class Searcher {
                                        NormalizationType normalizationType) {
 
         for (PostingsList postingsList : postingsLists) {
+            if (postingsList == null) postingsList = new PostingsList();
             switch (rankingType) {
                 case TF_IDF:
                     if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0),normalizationType);
