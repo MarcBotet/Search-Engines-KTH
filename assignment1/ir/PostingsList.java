@@ -41,6 +41,10 @@ public class PostingsList implements Comparable<PostingsList> {
         return list.size();
     }
 
+    public boolean isEmpty() {
+        return list.isEmpty();
+    }
+
     /**
      * Returns the ith posting.
      */
