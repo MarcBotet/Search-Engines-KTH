@@ -7,9 +7,7 @@
 
 package ir;
 
-import java.util.ArrayList;
-import java.util.StringTokenizer;
-import java.util.Iterator;
+import java.util.*;
 import java.nio.charset.*;
 import java.io.*;
 
@@ -111,9 +109,58 @@ public class Query {
      *  @param engine The search engine object
      */
     public void relevanceFeedback( PostingsList results, boolean[] docIsRelevant, Engine engine ) {
-        //
-        //  YOUR CODE HERE
-        //
+
+        HashMap<String, Double> query = new HashMap<>();
+
+        String patterns_file = engine.patterns_file;
+        int number_relevant = 0;
+
+        for (boolean b : docIsRelevant) {
+            if (b) ++number_relevant;
+        }
+
+        if (number_relevant == 0) return;
+        int cont = 0;
+        for (int i = 0; i < docIsRelevant.length; ++i) {
+            if (!docIsRelevant[i]) continue;
+            int docId = results.get(i).docID;
+            String path = engine.index.docNames.get(docId);
+            if (path.equals("..\\davisWiki\\Math.f")) {
+                path = "..\\davisWiki\\Mathematics.f";
+            }
+            processFile(query, path, patterns_file, number_relevant);
+            ++cont;
+            if (cont == number_relevant) break;
+        }
+
+        for (QueryTerm q : queryterm) {
+            query.merge(q.term, alpha, Double::sum);
+        }
+        // convert to our queryterm
+        queryterm = new ArrayList<>();
+        for (Map.Entry<String, Double> entry : query.entrySet()) {
+            queryterm.add(new QueryTerm(entry.getKey(), entry.getValue()));
+        }
+    }
+
+    private void processFile(HashMap<String, Double> query, String path, String patterns_file, int N) {
+
+        try {
+            Reader reader = new InputStreamReader( new FileInputStream(path), StandardCharsets.UTF_8 );
+            Tokenizer tok = new Tokenizer( reader, true, false, true, patterns_file );
+            while ( tok.hasMoreTokens() ) {
+                String token = tok.nextToken();
+                Double score = query.get(token);
+                if (score == null) {
+                    score = beta * (1. / N);
+                } else score += beta * (1. / N);
+                query.put(token, score);
+            }
+            reader.close();
+        } catch ( IOException e ) {
+            System.err.println( "Warning: IOException during indexing." );
+        }
+
     }
 }
 

@@ -37,6 +37,138 @@ public class KGramIndex {
         }
     }
 
+    public void save() {
+        // HashMap<String,List<KGramPostingsEntry>> index
+        try {
+            FileOutputStream myFileOutStream
+                    = new FileOutputStream(
+                    "./kgram/index.txt");
+
+            ObjectOutputStream myObjectOutStream
+                    = new ObjectOutputStream(myFileOutStream);
+
+            myObjectOutStream.writeObject(index);
+
+            // closing FileOutputStream and
+            // ObjectOutputStream
+            myObjectOutStream.close();
+            myFileOutStream.close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // HashMap<String,Integer> term2id
+        try {
+            FileOutputStream myFileOutStream
+                    = new FileOutputStream(
+                    "./kgram/term2id.txt");
+
+            ObjectOutputStream myObjectOutStream
+                    = new ObjectOutputStream(myFileOutStream);
+
+            myObjectOutStream.writeObject(term2id);
+
+            // closing FileOutputStream and
+            // ObjectOutputStream
+            myObjectOutStream.close();
+            myFileOutStream.close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // HashMap<Integer,String> id2term
+        try {
+            FileOutputStream myFileOutStream
+                    = new FileOutputStream(
+                    "./kgram/id2term.txt");
+
+            ObjectOutputStream myObjectOutStream
+                    = new ObjectOutputStream(myFileOutStream);
+
+            myObjectOutStream.writeObject(id2term);
+
+            // closing FileOutputStream and
+            // ObjectOutputStream
+            myObjectOutStream.close();
+            myFileOutStream.close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void load() {
+        // HashMap<String,List<KGramPostingsEntry>> index
+        try {
+            FileInputStream fileInput = new FileInputStream(
+                    "./kgram/index.txt");
+
+            ObjectInputStream objectInput
+                    = new ObjectInputStream(fileInput);
+
+            index = (HashMap<String,List<KGramPostingsEntry>>) objectInput.readObject();
+
+            objectInput.close();
+            fileInput.close();
+        }
+        catch (IOException obj1) {
+            obj1.printStackTrace();
+            return;
+        }
+        catch (ClassNotFoundException obj2) {
+            System.out.println("Class not found");
+            obj2.printStackTrace();
+            return;
+        }
+        // HashMap<String,Integer> term2id
+        try {
+            FileInputStream fileInput = new FileInputStream(
+                    "./kgram/term2id.txt");
+
+            ObjectInputStream objectInput
+                    = new ObjectInputStream(fileInput);
+
+            term2id = (HashMap<String, Integer>) objectInput.readObject();
+
+            objectInput.close();
+            fileInput.close();
+        }
+        catch (IOException obj1) {
+            obj1.printStackTrace();
+            return;
+        }
+        catch (ClassNotFoundException obj2) {
+            System.out.println("Class not found");
+            obj2.printStackTrace();
+            return;
+        }
+
+        // HashMap<Integer, String> id2term
+        try {
+            FileInputStream fileInput = new FileInputStream(
+                    "./kgram/id2term.txt");
+
+            ObjectInputStream objectInput
+                    = new ObjectInputStream(fileInput);
+
+            id2term = (HashMap<Integer, String>) objectInput.readObject();
+
+            objectInput.close();
+            fileInput.close();
+        }
+        catch (IOException obj1) {
+            obj1.printStackTrace();
+            return;
+        }
+        catch (ClassNotFoundException obj2) {
+            System.out.println("Class not found");
+            obj2.printStackTrace();
+            return;
+        }
+    }
+
     /** Generate the ID for an unknown term */
     private int generateTermID() {
         return ++lastTermID;
@@ -50,27 +182,62 @@ public class KGramIndex {
     /**
      *  Get intersection of two postings lists
      */
-    private List<KGramPostingsEntry> intersect(List<KGramPostingsEntry> p1, List<KGramPostingsEntry> p2) {
-        // 
-        // YOUR CODE HERE
-        //
-        return null;
-    }
+    public List<KGramPostingsEntry> intersect(List<KGramPostingsEntry> p1, List<KGramPostingsEntry> p2) {
+        List<KGramPostingsEntry> answer = new ArrayList<>();
+        int i = 0;
+        int j = 0;
 
+        while (i < p1.size() && j < p2.size()) {
+            KGramPostingsEntry kGramPostingsEntry1 = p1.get(i);
+            KGramPostingsEntry kGramPostingsEntry2 = p2.get(j);
+            if (kGramPostingsEntry1.tokenID == kGramPostingsEntry2.tokenID) {
+                answer.add(kGramPostingsEntry1);
+                ++i;
+                ++j;
+            } else if (kGramPostingsEntry1.tokenID < kGramPostingsEntry2.tokenID) ++i;
+            else ++j;
+        }
+
+        return answer;
+    }
 
     /** Inserts all k-grams from a token into the index. */
     public void insert( String token ) {
-        //
-        // YOUR CODE HERE
-        //
+        if (term2id.containsKey(token)) return;
+        int id = generateTermID();
+        id2term.put(id, token);
+        term2id.put(token, id);
+        HashSet<String> Kgrams = getKgram(token, false);
+        KGramPostingsEntry kGramPostingsEntry = new KGramPostingsEntry(id, Kgrams.size());
+        for (String gram : Kgrams) {
+            List<KGramPostingsEntry> list = index.get(gram);
+            if (list != null) {
+                list.add(kGramPostingsEntry);
+            } else {
+                list = new ArrayList<>();
+                list.add(kGramPostingsEntry);
+                index.put(gram, list);
+            }
+        }
+    }
+
+    public HashSet<String> getKgram(String token, boolean tokenProcessed) {
+        HashSet<String> answer = new HashSet<>();
+        if (!tokenProcessed) token = "^" + token + "$";
+        for (int i = 0; i <= token.length()-K; ++i) {
+            StringBuilder kgram = new StringBuilder();
+            for (int j = 0; j < K; ++j) {
+                kgram.append(token.charAt(i+j));
+            }
+            answer.add(kgram.toString());
+        }
+
+        return answer;
     }
 
     /** Get postings for the given k-gram */
     public List<KGramPostingsEntry> getPostings(String kgram) {
-        //
-        // YOUR CODE HERE
-        //
-        return null;
+        return index.getOrDefault(kgram, new ArrayList<>());
     }
 
     /** Get id of a term */
@@ -114,6 +281,25 @@ public class KGramIndex {
         }
         return decodedArgs;
     }
+
+    public void specificKgram(String sentence) {
+        String[] kgrams = sentence.split(" ");
+        List<KGramPostingsEntry> postings = null;
+        for (String kgram : kgrams) {
+            if (kgram.length() != K) {
+                System.err.println("Cannot search k-gram index: " + kgram.length() + "-gram provided instead of " + K + "-gram");
+                System.exit(1);
+            }
+            if (postings == null) {
+                postings = getPostings(kgram);
+            } else {
+                postings = intersect(postings, getPostings(kgram));
+            }
+        }
+        int resNum = postings.size();
+        System.err.println("Found " + resNum + " posting(s) for " + sentence);
+    }
+
 
     public static void main(String[] arguments) throws FileNotFoundException, IOException {
         HashMap<String,String> args = decodeArgs(arguments);

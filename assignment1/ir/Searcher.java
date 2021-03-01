@@ -7,7 +7,6 @@
 
 package ir;
 
-import javafx.geometry.Pos;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,6 +46,53 @@ public class Searcher {
         this.hitsRanker = hitsRanker;
     }
 
+    public Searcher(Index index, KGramIndex kgIndex) {
+        this.index = index;
+        this.kgIndex = kgIndex;
+    }
+
+    private ArrayList<PostingsList> processQuery(Query query, QueryType queryType) {
+        ArrayList<PostingsList> postingsLists = new ArrayList<>();
+        WildCardSearch wildCardSearch = new WildCardSearch(index, kgIndex, query, queryType);
+
+        for (Query.QueryTerm q : query.queryterm) {
+            String term = q.term;
+            if (term.contains("*")) {
+                PostingsList p = wildCardSearch.wilcardWord(term);
+                if (p != null) postingsLists.add(p);
+                else postingsLists.addAll(wildCardSearch.queryPostings);
+                continue;
+            }
+            PostingsList post = index.getPostings(term);
+            if (post == null) {
+                postingsLists.add(null);
+            } else {
+                postingsLists.add(new PostingsList(post, q.weight));
+            }
+        }
+
+        return postingsLists;
+    }
+
+    public boolean satisfies(Query query, QueryType queryType) {
+        ArrayList<PostingsList> postingsLists = processQuery(query, queryType);
+
+        if (postingsLists.contains(null)) return false;
+        if (postingsLists.size() == 1) return true;
+
+        if (queryType.equals(QueryType.PHRASE_QUERY)) {
+
+            ArrayList<PostingsList> copy = (ArrayList<PostingsList>) postingsLists.clone();
+            PostingsList documents = searchIntersection(copy);
+            HashSet<Integer> documentsID = getDocumentsID(documents);
+            return containsSearchPhrase(postingsLists.get(0), postingsLists.get(1), documentsID);
+        } else if (queryType.equals(QueryType.INTERSECTION_QUERY)) {
+            Collections.sort(postingsLists, Collections.reverseOrder());
+            return isIntersection(postingsLists.get(0), postingsLists.get(1));
+        }
+        return true;
+    }
+
     /**
      * Searches the index for postings matching the query.
      *
@@ -55,8 +101,9 @@ public class Searcher {
     public PostingsList search(Query query, QueryType queryType, RankingType rankingType, NormalizationType normalizationType) {
 
         // list of postingsList fot each token in the query
-        ArrayList<PostingsList> postingsLists = new ArrayList<>();
-        query.queryterm.forEach((q) -> postingsLists.add(index.getPostings(q.term)));
+        ArrayList<PostingsList> postingsLists = processQuery(query, queryType);
+
+        //query.queryterm.forEach((q) -> postingsLists.add(new PostingsList(index.getPostings(q.term), q.weight)));
         //postingsLists.removeAll(Collections.singleton(null));
 
         if (postingsLists.isEmpty()) return null;
@@ -150,6 +197,7 @@ public class Searcher {
                                        NormalizationType normalizationType) {
 
         for (PostingsList postingsList : postingsLists) {
+            if (postingsList == null) postingsList = new PostingsList();
             switch (rankingType) {
                 case TF_IDF:
                     if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0),normalizationType);
@@ -246,13 +294,29 @@ public class Searcher {
             }
             else lend = Double.valueOf(index.docLengths.get(postingsEntry.docID));
             double score = calculate_tf_idf(lend, tf, idf);
-            postingsEntry.score = score;
+            postingsEntry.score = score * postingsList.weight;
         }
     }
 
 
     private double calculate_tf_idf(double lend, int tf, double idf) {
         return tf * idf / lend;
+    }
+
+
+    private boolean isIntersection(PostingsList q1, PostingsList q2) {
+        PostingsList answer = new PostingsList();
+        int i = 0;
+        int j = 0;
+        while (i < q1.size() && j < q2.size()) {
+            PostingsEntry postingsEntry1 = q1.get(i);
+            PostingsEntry postingsEntry2 = q2.get(j);
+            if (postingsEntry1.docID == postingsEntry2.docID) {
+                return true;
+            } else if (postingsEntry1.docID < postingsEntry2.docID) ++i;
+            else ++j;
+        }
+        return false;
     }
 
 
@@ -294,6 +358,7 @@ public class Searcher {
 
         return answer;
     }
+
 
     private HashSet<Integer> getDocumentsID(PostingsList documents) {
         HashSet<Integer> result = new HashSet<>();
@@ -362,6 +427,60 @@ public class Searcher {
         }
 
         return answer;
+    }
+
+
+    private boolean containsSearchPhrase(PostingsList p1, PostingsList p2, HashSet<Integer> documents) {
+        PostingsList answer = new PostingsList();
+        int entry1 = 0;
+        int entry2 = 0;
+
+        // the docID has to be the same
+        while (entry1 < p1.size() && entry2 < p2.size()) {
+            PostingsEntry postingsEntry1 = p1.get(entry1);
+            PostingsEntry postingsEntry2 = p2.get(entry2);
+
+            if (postingsEntry1.docID < postingsEntry2.docID) {
+                ++entry1;
+                continue;
+            } else if (postingsEntry1.docID > postingsEntry2.docID) {
+                ++entry2;
+                continue;
+            } else {
+                if (!documents.contains(postingsEntry1.docID)) {
+                    ++entry1;
+                    ++entry2;
+                    continue;
+                }
+            }
+
+            ArrayList<Integer> offset1 = p1.get(entry1).offsets;
+            ArrayList<Integer> offset2 = p2.get(entry2).offsets;
+            int i = 0;
+            int j = 0;
+            while (i < offset1.size() && j < offset2.size()) {
+                int diff = offset1.get(i) - offset2.get(j);
+
+                if (diff == -1) {
+                    return true;
+                } else if (diff < 0) ++i;
+                else if (diff > 0) ++j;
+                else {
+                    // if is the same word the diff will be 0, then add the second word
+                    ++j;
+                }
+
+                if (i == offset1.size() && offset1.get(i - 1) > offset2.get(j)) {
+                    i = offset1.size() - 1;
+                } else if (i < offset1.size() && j == offset2.size() && offset1.get(i) < offset2.get(j-1)) {
+                    j = offset2.size() - 1;
+                }
+            }
+            ++entry1;
+            ++entry2;
+        }
+
+        return false;
     }
 
 }
