@@ -282,6 +282,25 @@ public class KGramIndex {
         return decodedArgs;
     }
 
+    public void specificKgram(String sentence) {
+        String[] kgrams = sentence.split(" ");
+        List<KGramPostingsEntry> postings = null;
+        for (String kgram : kgrams) {
+            if (kgram.length() != K) {
+                System.err.println("Cannot search k-gram index: " + kgram.length() + "-gram provided instead of " + K + "-gram");
+                System.exit(1);
+            }
+            if (postings == null) {
+                postings = getPostings(kgram);
+            } else {
+                postings = intersect(postings, getPostings(kgram));
+            }
+        }
+        int resNum = postings.size();
+        System.err.println("Found " + resNum + " posting(s) for " + sentence);
+    }
+
+
     public static void main(String[] arguments) throws FileNotFoundException, IOException {
         HashMap<String,String> args = decodeArgs(arguments);
 
