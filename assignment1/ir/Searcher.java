@@ -197,7 +197,7 @@ public class Searcher {
                                        NormalizationType normalizationType) {
 
         for (PostingsList postingsList : postingsLists) {
-            if (postingsList == null) postingsList = new PostingsList();
+            if (postingsList == null) continue;
             switch (rankingType) {
                 case TF_IDF:
                     if (postingsLists.size() == 1) return searchTfidf1(postingsLists.get(0),normalizationType);
@@ -221,11 +221,16 @@ public class Searcher {
             answer = mergePostingList(answer, postingsLists.get(i), rankingType);
         }
         Collections.sort(answer.getList());
+        if (answer.isEmpty()) return null;
         return answer;
     }
 
     private PostingsList mergePostingList(PostingsList p1, PostingsList p2,RankingType rankingType) {
         PostingsList answer = new PostingsList();
+
+        if (p1 == null) p1 = new PostingsList();
+        if (p2 == null) p2 = new PostingsList();
+
         int i = 0;
         int j = 0;
         while (i < p1.size() && j < p2.size()) {

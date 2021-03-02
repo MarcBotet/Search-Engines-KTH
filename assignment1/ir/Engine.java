@@ -90,15 +90,15 @@ public class Engine {
                 }
                 index.computeEuclideanLength();
                 //kgIndex.save();
-                //kgIndex.specificKgram("ve");
-                //kgIndex.specificKgram("th he");
+                kgIndex.specificKgram("ve");
+                kgIndex.specificKgram("th he");
                 index.cleanup();
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 gui.displayInfoText( String.format( "Indexing done in %.1f seconds.", elapsedTime/1000.0 ));
             }
         } else {
             long startTime = System.currentTimeMillis();
-            kgIndex.load();
+            //kgIndex.load();
             long elapsedTime = System.currentTimeMillis() - startTime;
             gui.displayInfoText( String.format( "Indexing done in %.1f seconds.", elapsedTime/1000.0 ));
             //gui.displayInfoText( "Index is loaded from disk" );
