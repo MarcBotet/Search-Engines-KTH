@@ -114,9 +114,9 @@ public class SpellChecker {
         for (int i = 1; i < s1.length(); ++i) {
             for (int j = 1; j < s2.length(); ++j) {
                 int substitute = m[i-1][j-1] + ((s1.charAt(i) == s2.charAt(j)) ? 0 : 2);
-                int insert = m[i-1][j] + 1;
-                int delete = m[i][j-1] + 1;
-                m[i][j] = Math.min(substitute, Math.min(insert, delete));
+                int left = m[i-1][j] + 1;
+                int up = m[i][j-1] + 1;
+                m[i][j] = Math.min(substitute, Math.min(left, up));
 
             }
         }
@@ -209,7 +209,7 @@ public class SpellChecker {
         for (KGramStat g : w1) {
             String token = g.token;
             double score = g.score;
-            double post = g.getSizePostingList()/ w1.size();
+            double post = g.getSizePostingList();
 
             String[] list = g.token.split(" ");
             String searchToken = list[list.length-1];
@@ -217,7 +217,7 @@ public class SpellChecker {
             for (KGramStat g2 : w2) {
                 String aux = token + " " + g2.token;
                 double sc = score + g2.score;
-                Double pa = post + g2.getSizePostingList()/w2.size();
+                Double pa = post + g2.getSizePostingList();
                 Query query = new Query(searchToken + " " + g2.token);
                 if (searcher.satisfies(query, queryType)) answer.add(new KGramStat(aux, sc, pa));
             }

@@ -212,6 +212,7 @@ public class Searcher {
                     return calculateHits(postingsLists);
             }
         }
+        if (postingsLists.size() < 2) return null;
         return union(postingsLists, rankingType);
     }
 
